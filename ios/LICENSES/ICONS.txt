@@ -1,0 +1,15 @@
+UI 小图标出处(FAB 菜单四枚,均取自 iconify 聚合的开源图标集 https://icon-sets.iconify.design)
+================================================================================
+
+ic-event    ← tabler:calendar-up
+  Tabler Icons — MIT License — Paweł Kuna
+  https://github.com/tabler/tabler-icons/blob/master/LICENSE
+
+ic-note     ← fluent:comment-edit-filled
+ic-photo    ← fluent:image-filled
+ic-sticker  ← fluent:sticker-filled
+  Fluent UI System Icons — MIT License — Microsoft Corporation
+  https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE
+
+两家均为 MIT,允许随本项目再分发。App 图标(AppIcon)是本项目自制占位图。
+贴纸素材的出处见本目录的 sources-*.md 清单(一行一张)。

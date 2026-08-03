@@ -1,0 +1,17 @@
+# couple-calendar server
+# 需要 Python >= 3.10（mcp>=2 的硬性要求；系统自带 3.9 装不上，建议 3.12）
+fastapi
+uvicorn
+aiosqlite
+python-multipart
+mcp>=2  # mcp_server.py 用的是 2.0 的 lowlevel API（1.x 的装饰器写法已移除）
+pydantic  # push.py 顶层直接用到，显式声明（fastapi 也会带，但别指望传递依赖）
+anyio     # mcp_server.py 顶层直接用到，同上
+httpx     # extractor.py 调模型用（push 模块开了的话也要，见下）
+
+# ---- 可选：APNs 推送模块（push.py）----
+# 不配 APNS_* 四个环境变量就用不到，也不用装下面这三个；
+# 服务照常启动，只是伴侣动日历时手机不响。
+# httpx[http2]
+# PyJWT
+# cryptography

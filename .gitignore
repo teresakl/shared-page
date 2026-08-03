@@ -1,0 +1,36 @@
+# ====== 钥匙不进 repo(根级兜底,ios/.gitignore 里还有一份只管 ios 子树的)======
+CalendarSecrets.swift
+
+# 填好的环境变量(token、模型 key、APNs 路径)。.env.example 是模板,那个要进
+.env
+.env.*
+!.env.example
+
+# ====== 本地验证/运行产物 ======
+venv/
+.venv/
+__pycache__/
+*.pyc
+data/
+data-verify/
+data*/
+_verify/
+
+# ====== 生成物:xcodegen generate 现场生成,不进 repo ======
+ios/CoupleCalendar.xcodeproj/
+
+# ====== 备份/施工残渣 ======
+_backup-*/
+_wip-*/
+*.bak
+*.bak.*
+*.bak*
+*.orig
+
+# ====== 系统垃圾 ======
+.DS_Store
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+uvicorn.log
