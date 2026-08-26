@@ -6,6 +6,11 @@ CalendarSecrets.swift
 .env.*
 !.env.example
 
+# 写了真实生日/纪念日的种子文件不进仓库，示范文件要进
+seeds.json
+server/seeds.json
+!server/seeds.example.json
+
 # ====== 本地验证/运行产物 ======
 venv/
 .venv/
