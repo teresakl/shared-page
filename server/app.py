@@ -20,8 +20,8 @@ import routes
 import seeder
 from calendar_core import Storage
 
-# 没配 token 就别起来 —— 报错里带着生成命令
-config.require_token()
+# Token is optional. Local web starts without one.
+# Set CALENDAR_TOKEN if you expose this beyond your own machine.
 
 
 @asynccontextmanager

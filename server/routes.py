@@ -1,9 +1,8 @@
-"""Calendar REST endpoints for the iOS frontend (CoupleCalendar-iOS).
+"""Calendar REST endpoints.
 
-门禁：这个服务假定跑在任意 HTTPS 反代后面，公网直达也行——唯一那道门
-就是下面的 X-Calendar-Token。任何时候都不要把 Depends(_require_calendar_token) 摘掉。
-
-token 只从环境变量 CALENDAR_TOKEN 读（config.py），启动时缺了会直接报错退出。
+Local web: CALENDAR_TOKEN may be empty, then these routes are open.
+If CALENDAR_TOKEN is set (recommended for any public tunnel), every
+protected route still goes through Depends(_require_calendar_token).
 """
 
 from __future__ import annotations
@@ -51,8 +50,9 @@ async def _require_calendar_token(
     x_calendar_token: str = Header("", alias="X-Calendar-Token"),
 ) -> None:
     expected = config.CALENDAR_TOKEN
-    # 没配 token 就一律拒绝 —— 配置缺失时宁可全挡，也不能变成裸奔
-    if not expected or not x_calendar_token or x_calendar_token != expected:
+    if not expected:
+        return
+    if not x_calendar_token or x_calendar_token != expected:
         raise HTTPException(status_code=401, detail="invalid calendar token")
 
 
@@ -145,7 +145,7 @@ async def calendar_comment(
 @router.get("/ping")
 async def calendar_ping() -> dict[str, Any]:
     """不查 token 的探活口。部署完先用它确认路由通了，不泄露任何数据。"""
-    return {"ok": True, "service": "calendar"}
+    return {"ok": True, "service": "calendar", "token_required": bool(config.CALENDAR_TOKEN)}
 
 
 # ============================================================

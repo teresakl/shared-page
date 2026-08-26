@@ -432,7 +432,7 @@ button { cursor: pointer; }
   position: absolute;
   width: 174px;
   min-height: 90px;
-  background: #fffdf8;
+  background: #fffdf8 url("/assets/stickers/grid-scrap-strip.png") center / 100% 100% no-repeat;
   border: 1px solid #ead7c8;
   box-shadow: 2px 2px 0 rgba(150, 120, 125, 0.18);
   padding: 16px 10px 10px;
@@ -448,9 +448,14 @@ button { cursor: pointer; }
   position: absolute;
   top: -8px; left: 50%;
   width: 46px; height: 16px;
-  transform: translateX(-50%) rotate(-3deg);
+  transform: translateX(-50%) rotate(6deg);
   background: image-set(url("/assets/stickers/gingham-tape-short.png") 1x);
   background-size: cover;
+}
+.note.master .tape {
+  left: 8px;
+  transform: rotate(-19deg);
+  filter: hue-rotate(183deg) saturate(0.78) brightness(1.04);
 }
 .note .body {
   font-size: 13px;

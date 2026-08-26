@@ -20,6 +20,7 @@
   const $ = (id) => document.getElementById(id);
   const state = {
     token: localStorage.getItem("calendarToken") || "",
+    tokenRequired: false,
     view: "unlock",
     year: 0,
     month: 0,
@@ -922,14 +923,14 @@
     err.textContent = "";
     const typed = $("token").value.trim();
     if (typed) state.token = typed;
-    if (!state.token) { err.textContent = "先把钥匙填上"; return; }
+    if (state.tokenRequired && !state.token) { err.textContent = "先把钥匙填上"; return; }
     try {
       await api("/api/v1/calendar/events?limit=1");
     } catch (e) {
       err.textContent = e.message || "打不开";
       return;
     }
-    localStorage.setItem("calendarToken", state.token);
+    if (state.token) localStorage.setItem("calendarToken", state.token);
     const t = todayParts();
     state.year = t.y; state.month = t.m; state.day = t.day;
     state.view = "month";
@@ -940,11 +941,23 @@
   $("open-book").addEventListener("click", openBook);
   $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") openBook(); });
 
-  const t = todayParts();
-  state.year = t.y; state.month = t.m;
-  if (state.token) {
-    openBook().catch(() => renderUnlock());
-  } else {
-    renderUnlock();
-  }
+  (async () => {
+    const t = todayParts();
+    state.year = t.y; state.month = t.m;
+    try {
+      const ping = await fetch("/api/v1/calendar/ping").then((r) => r.json());
+      state.tokenRequired = !!ping.token_required;
+    } catch (_) {
+      state.tokenRequired = true;
+    }
+    if (!state.tokenRequired) {
+      openBook().catch(() => renderUnlock());
+      return;
+    }
+    if (state.token) {
+      openBook().catch(() => renderUnlock());
+    } else {
+      renderUnlock();
+    }
+  })();
 })();

@@ -33,7 +33,9 @@ _PHOTO_RE = re.compile(r"^[0-9a-f]{32}\.jpg$")
 
 async def _require_token(x_calendar_token: str = Header("", alias="X-Calendar-Token")) -> None:
     expected = config.CALENDAR_TOKEN
-    if not expected or not x_calendar_token or x_calendar_token != expected:
+    if not expected:
+        return
+    if not x_calendar_token or x_calendar_token != expected:
         raise HTTPException(status_code=401, detail="invalid calendar token")
 
 
