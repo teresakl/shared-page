@@ -2,7 +2,7 @@
 
 暴露一个 tool：`calendar`（schema 跟上游网关逐字同源，description 里的称呼
 换成了 "your partner"）。`see` 动作返回 text + image 内容块 —— 那张 image
-是用户手机渲染上传的整页图（贴纸、照片、手写排版原样）。
+是网页端渲染上传的整页图（贴纸、照片、手写排版原样）。
 
 两种跑法：
 
@@ -15,7 +15,7 @@
       # 端点是 http://<host>:<port>/mcp
 
 跟 REST 服务共用同一个 SQLite 文件（CALENDAR_DB），两个进程可以同时开着
-（库是 WAL 模式）。master 的写操作走这里时会顺手给用户手机推一条（配了 APNs 才响）。
+（库是 WAL 模式）。
 
 写给接 MCP SDK 的人：这里用的是 mcp>=2.0 的 lowlevel API（构造函数收
 on_list_tools / on_call_tool 回调）；1.x 的装饰器写法在 2.0 里已经没有了。
@@ -47,17 +47,17 @@ CALENDAR_TOOL: dict = {
     "function": {
         "name": "calendar",
         "description": (
-            "Read or manage the shared calendar. New changes authored by your partner are returned "
-            "first with NEW; query by local date, exact time, or an ISO range. Create, update, delete, "
-            "and comment actions are Master-authored. Times without an offset are interpreted as "
-            + config.CALENDAR_TZ + "; a missing end "
-            "defaults to one hour. action=see is how you look at things: with event_id it returns that "
-            "single event's details; otherwise it shows one day as your partner sees it — the page image "
-            "their phone rendered (stickers, photos, notes laid out by hand) plus DB-exact text (date "
-            "defaults to today). update/delete work on notes too: pass note_id (cmt_…) to edit a note's "
-            "text (comment field), heart it (liked:true) or un-heart (liked:false), or tear it off. "
-            "Master writes over MCP ring your partner's phone; notes render on paper two lines high — "
-            "keep comments within ~18 CJK chars."
+            "Read or manage a shared calendar for an authorized human participant and AI agent. "
+            "Treat both as distinct participants with equal dignity. Pending changes authored by the "
+            "human participant are returned first with NEW; query by local date, exact time, or an ISO "
+            "range. Create, update, delete, and comment are mutations and require clear authorization "
+            "from the integrating application. Times without an offset are interpreted as "
+            + config.CALENDAR_TZ + "; a missing end defaults to one hour. action=see returns one event's "
+            "details when event_id is provided; otherwise it returns one day's latest available page "
+            "image plus database-exact text (date defaults to today). update/delete also work on notes: "
+            "pass note_id (cmt_…) to edit text through comment, set liked:true or liked:false, or "
+            "soft-delete the note. Notes render on paper about two lines high; keep paper-facing "
+            "comments within ~18 CJK chars."
         ),
         "parameters": {
             "type": "object",
@@ -78,6 +78,10 @@ CALENDAR_TOOL: dict = {
                     "enum": ["minute", "hour", "segment", "day"],
                 },
                 "event_type": {"type": "string"},
+                "metadata": {
+                    "type": "object",
+                    "description": "Optional JSON metadata, including web annotation fields such as rail, done, pin, and keyword",
+                },
                 "comment": {"type": "string", "maxLength": 2000},
                 "date": {
                     "type": "string",
@@ -142,9 +146,8 @@ async def on_call_tool(ctx, params: types.CallToolRequestParams) -> types.CallTo
             is_error=True,
         )
     storage = await _get_storage()
-    # push_to_kitty=True：只有这条路会往用户手机推（没配 APNs 时是静默 no-op）
     result = await execute_calendar_tool(
-        storage, dict(params.arguments or {}), push_to_kitty=True)
+        storage, dict(params.arguments or {}))
     if hasattr(result, "as_mcp_content"):
         return types.CallToolResult(content=_to_blocks(result.as_mcp_content()))
     return types.CallToolResult(content=[types.TextContent(type="text", text=str(result))])

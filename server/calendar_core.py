@@ -12,8 +12,8 @@ import asyncio
 import base64
 import json
 import logging
-import os
 import uuid
+
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -399,7 +399,7 @@ async def create_event(
         "event_type": str(payload.get("event_type") or "custom").strip()[:60],
         "source": source,
         "created_by": actor,
-        "source_message_id": source_message_id,   # 手动写入时是 null；extractor 会填「这条是从哪句话抽出来的」
+        "source_message_id": source_message_id,   # 可选的来源追溯字段
         "revision": 1,
         "status": "active",
         "metadata": metadata,
@@ -1046,7 +1046,7 @@ def _event_dt(event: dict[str, Any], key: str) -> datetime:
 
 
 # ------------------------------------------------------------
-# 同日查重 —— 只给自动写入路用（extractor 抽出来的候选、seeder 的一次性条目）
+# 同日查重 —— 供需要避免重复的写入路径使用
 #
 # 手动路一律不查：REST 入口和 MCP 工具都不走这里。同一天想写三条一样的
 # 是用户自己的自由，机器不该插嘴
@@ -1465,77 +1465,14 @@ async def execute_calendar_see(storage, arguments: dict[str, Any]) -> CalendarSe
     return CalendarSeeResult(text="\n".join(lines), image_path=image_path)
 
 
-def _push_texts(action: str, event: Optional[dict[str, Any]] = None,
-                note: Optional[dict[str, Any]] = None) -> tuple[str, str, str]:
-    """(通知标题, 通知正文, 那一天)。标题是日子「8月5日」，正文长这样：
-    「ASSISTANT 贴了一张便签：xxx」（名字取自环境变量 CALENDAR_ASSISTANT_NAME）。
-    day 是 "2026-08-05"，app 点开通知靠它跳到那一页"""
-    who = config.ASSISTANT_NAME
-    if note is not None:
-        day = _normalise_anchor(note.get("anchor_date")) or ""
-        body = str(note.get("body") or "")
-        text = f"{who}贴了一张便签：{body}"
-        if action == "note_update":
-            text = f"{who}改了便签：{body}"
-        elif action == "note_delete":
-            text = f"{who}撕掉了一张便签：「{body}」"
-        elif action == "like":
-            text = f"{who}给你的便签点了心：「{body}」"
-    else:
-        event = event or {}
-        day = _anchor_date_of(event.get("starts_at")) or ""
-        title = str(event.get("title") or "")
-        when = ""
-        if event.get("precision") != "day":
-            try:
-                when = f"{_event_dt(event, 'starts_at').astimezone(_BJ):%H:%M} "
-            except (TypeError, ValueError):
-                pass
-        if action == "create":
-            text = f"{who}加了一条：{when}{title}"
-        elif action == "update":
-            text = f"{who}改了：{when}{title}"
-        else:
-            text = f"{who}删掉了：{title}"
-    head = "日历"
-    if day:
-        d = date.fromisoformat(day)
-        head = f"{d.month}月{d.day}日"
-    return head, text, day
-
-
-async def _push_calendar_change(storage, *, action: str,
-                                event: Optional[dict[str, Any]] = None,
-                                note: Optional[dict[str, Any]] = None) -> None:
-    """master 动了日历 → 日历 app 自己弹通知（可选模块）。
-
-    纯通知、不落对话：直接对日历 app 登记的 token 发 alert APNs，
-    payload 带 calendar_day，app 点开跳到那一页。同一天连着改 collapse 成最新一条。
-    APNs 没配 / app 还没装 / 没授权（没有登记 token）就静默跳过；
-    推送这条腿摔了绝不能绊倒日历写操作本身，整个包死只记日志
-    """
-    if os.environ.get("CALENDAR_PUSH_DISABLE", "").strip():
-        return
-    try:
-        import push               # 函数内 import：避开 push → routes → 这里 的环
-        if not push.enabled():
-            return
-        head, text, day = _push_texts(action, event=event, note=note)
-        await push.send_calendar_alert(storage, title=head, body=text, day=day)
-    except Exception:
-        logger.warning("calendar change push failed", exc_info=True)
-
-
 async def execute_calendar_tool(
     storage,
     arguments: dict[str, Any],
     *,
     conversation_id: Optional[str] = None,
-    push_to_kitty: bool = False,
 ) -> Any:
     """大多数动作返回 JSON 字符串；see 返回 CalendarSeeResult（带图）。
-    MCP 那边靠 hasattr(as_mcp_content) 认。
-    push_to_kitty=True（只有 mcp_server 传）时，master 的写操作会往用户手机推一条"""
+    MCP 那边靠 hasattr(as_mcp_content) 认。"""
     action = str(arguments.get("action") or "list").strip().lower()
     try:
         if action in ("see", "get"):
@@ -1575,8 +1512,6 @@ async def execute_calendar_tool(
             return _json(result)
         if action == "create":
             event = await create_event(storage, arguments, actor="master", source="manual")
-            if push_to_kitty:
-                await _push_calendar_change(storage, action="create", event=event)
             return _json({"ok": True, "event": event})
         if action in ("update", "like"):
             # update 就是「改」，事件和便签都归它 ——
@@ -1584,7 +1519,6 @@ async def execute_calendar_tool(
             # "like" 从菜单撤了但发过来照样认（liked 默认 true 的便签 update）
             note_id = str(arguments.get("note_id") or arguments.get("comment_id") or "")
             if note_id:
-                before = await get_note(storage, note_id)
                 patch: dict[str, Any] = {}
                 if action == "like" or "liked" in arguments:
                     patch["liked"] = bool(arguments.get("liked", True))
@@ -1592,34 +1526,22 @@ async def execute_calendar_tool(
                 if body:
                     patch["body"] = body
                 note = await update_note(storage, note_id, patch, actor="master")
-                if push_to_kitty and before is not None:
-                    # 点亮那一下推「点了心」，字真变了推「改了便签」；收心、重复点不推
-                    if patch.get("liked") and not before.get("liked"):
-                        await _push_calendar_change(storage, action="like", note=note)
-                    elif body and body != str(before.get("body") or ""):
-                        await _push_calendar_change(storage, action="note_update", note=note)
                 return _json({"ok": True, "comment": note})
             event = await update_event(
                 storage, str(arguments.get("event_id") or ""),
                 arguments, actor="master", source="manual",
             )
-            if push_to_kitty:
-                await _push_calendar_change(storage, action="update", event=event)
             return _json({"ok": True, "event": event})
         if action == "delete":
             # 同一个道理：带 note_id 撕便签，带 event_id 删事件
             note_id = str(arguments.get("note_id") or arguments.get("comment_id") or "")
             if note_id:
                 note = await delete_note(storage, note_id, actor="master")
-                if push_to_kitty:
-                    await _push_calendar_change(storage, action="note_delete", note=note)
                 return _json({"ok": True, "comment": note})
             event = await delete_event(
                 storage, str(arguments.get("event_id") or ""),
                 actor="master", source="manual",
             )
-            if push_to_kitty:
-                await _push_calendar_change(storage, action="delete", event=event)
             return _json({"ok": True, "event": event})
         if action == "comment":
             # 给了 event_id 就是挂在那条日程上（老行为，一个字没变）；
@@ -1631,8 +1553,6 @@ async def execute_calendar_tool(
                 event_id=str(arguments.get("event_id") or "") or None,
                 anchor_date=arguments.get("date"),
             )
-            if push_to_kitty:
-                await _push_calendar_change(storage, action="comment", note=comment)
             return _json({"ok": True, "comment": comment})
         return _json({"ok": False, "error": f"unknown action: {action}"})
     except (TypeError, ValueError) as exc:

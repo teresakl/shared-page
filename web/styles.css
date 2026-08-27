@@ -32,7 +32,6 @@
 :root {
   --ink-kitty: #d4737f;
   --ink-master: #629ba7;
-  --ink-system: #9a9490;
   --ink-note-kitty: #c9556a;
   --ink-note-master: #274e56;
   --ink-title: #5c4249;
@@ -50,10 +49,8 @@
   --paper-period: #fbdde4;
   --paper-block-kitty: rgba(214, 120, 132, 0.11);
   --paper-block-master: rgba(79, 153, 168, 0.13);
-  --paper-block-auto: rgba(154, 148, 144, 0.13);
   --paper-event-kitty: rgba(214, 120, 132, 0.08);
   --paper-event-master: rgba(79, 153, 168, 0.11);
-  --paper-event-auto: rgba(154, 148, 144, 0.13);
   --paper-instax: #efeae3;
   --paper-fab: #f4d9de;
   --paper-capsule: #fbeef1;
@@ -459,7 +456,7 @@ button { cursor: pointer; }
 }
 .event-block.kitty { background: var(--paper-event-kitty); box-shadow: inset 2.5px 0 0 var(--ink-kitty); }
 .event-block.master { background: var(--paper-event-master); box-shadow: inset 2.5px 0 0 var(--ink-master); }
-.event-block.auto { background: var(--paper-event-auto); box-shadow: inset 2.5px 0 0 var(--ink-system); }
+
 .event-block.kitty .meta { color: var(--ink-kitty); }
 .event-block.master .meta { color: var(--ink-master); }
 

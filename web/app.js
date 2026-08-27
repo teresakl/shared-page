@@ -67,10 +67,11 @@
     const a = String(ev.created_by || ev.author || "").toLowerCase();
     if (a === "kitty") return "kitty";
     if (a === "master" || a === "assistant") return "master";
-    return "auto";
+    if (ev.source === "seed") return "kitty";
+    return "master";
   }
   function authorName(a) {
-    return a === "kitty" ? "USER" : a === "master" ? "ASSISTANT" : "AUTO";
+    return a === "kitty" ? "USER" : "ASSISTANT";
   }
   function isSpan(ev) {
     const md = ev.metadata || {};
@@ -381,7 +382,7 @@
         <div class="num">${disp}</div>
         <div class="titles">${monthLines(dayEvents).map((e) => {
           const done = !!metaOf(e).done;
-          const ink = authorOf(e) === "master" ? "var(--ink-master)" : authorOf(e) === "auto" ? "var(--ink-system)" : "var(--ink-kitty)";
+          const ink = authorOf(e) === "master" ? "var(--ink-master)" : "var(--ink-kitty)";
           return `<div class="kw${done ? " done" : ""}" style="color:${ink}">${done ? "✓ " : ""}${esc(monthKeyword(e))}</div>`;
         }).join("")}</div>
         ${state.unseen.has(date) ? `<img class="new" src="/assets/stickers/red-exclaim-double.png" alt="">` : ""}

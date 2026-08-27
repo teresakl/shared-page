@@ -21,7 +21,6 @@ import config
 from calendar_core import (
     CalendarDelivery,
     Storage,
-    _parse_datetime,
     add_comment,
     complete_calendar_delivery,
     add_note,
@@ -194,50 +193,6 @@ async def calendar_env_seen(
     await complete_calendar_delivery(
         get_storage(request), CalendarDelivery(change_ids=ids, channel="env"))
     return {"ok": True, "marked": len(ids)}
-
-
-# ============================================================
-# 自动抽取 —— 第三种笔迹（AUTO）的入口
-#
-# 你的聊天管道每收到一条用户消息，往这儿 POST 一次。它判断这句话里有没有
-# 「未来的安排」，有就自己写进日历，没有就什么都不做。没配 EXTRACTOR_* 那几个
-# 环境变量的话，这个口返回 503 并说清楚缺什么 —— 别的功能一切照常。
-#
-# 详见 extractor.py 头部
-# ============================================================
-
-
-@router.post("/extract", dependencies=[Depends(_require_calendar_token)])
-async def calendar_extract(
-    payload: dict[str, Any] = Body(...),
-    storage: Storage = Depends(get_storage),
-) -> dict[str, Any]:
-    import extractor
-
-    if not extractor.enabled():
-        raise HTTPException(
-            status_code=503,
-            detail=("extractor is not configured — set EXTRACTOR_BASE_URL, "
-                    "EXTRACTOR_API_KEY and EXTRACTOR_MODEL to turn it on"),
-        )
-    text = str(payload.get("text") or "")
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="text is required")
-
-    # now 可以不给。给了的话得是带时区的 ISO —— 不带时区的时间在这个服务里
-    # 一律按产品时区解读，跟别处一个规矩
-    moment = None
-    raw_now = payload.get("now")
-    if raw_now:
-        try:
-            moment = _parse_datetime(raw_now, assume_bj=True)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="now must be an ISO datetime")
-
-    return await extractor.extract_and_apply(
-        storage, text, now=moment,
-        source_message_id=str(payload.get("message_id") or "") or None,
-    )
 
 
 # ============================================================

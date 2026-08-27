@@ -2,7 +2,6 @@
 
 CALENDAR_TOKEN 可选。本机 / 局域网默认不设，打开网页就能用。
 如果要把服务穿透到公网，再设这把钥匙。
-APNS_* 四件缺任何一件，推送模块整体关闭（一切照常，只是不响）。
 """
 
 from __future__ import annotations
@@ -31,28 +30,9 @@ CALENDAR_TZ: str = os.environ.get("CALENDAR_TZ", "Asia/Shanghai").strip() or "As
 ASSISTANT_NAME: str = os.environ.get("CALENDAR_ASSISTANT_NAME", "").strip() or "ASSISTANT"
 USER_NAME: str = os.environ.get("CALENDAR_USER_NAME", "").strip() or "USER"
 
-# ---- 自动抽取（可选模块，extractor.py）----
-EXTRACTOR_BASE_URL: str = os.environ.get("EXTRACTOR_BASE_URL", "").strip()
-EXTRACTOR_API_KEY: str = os.environ.get("EXTRACTOR_API_KEY", "").strip()
-EXTRACTOR_MODEL: str = os.environ.get("EXTRACTOR_MODEL", "").strip()
-
-EXTRACTOR_MIN_CONFIDENCE: float = float(
-    os.environ.get("EXTRACTOR_MIN_CONFIDENCE", "").strip() or 0.6)
-EXTRACTOR_MIN_CHARS: int = int(os.environ.get("EXTRACTOR_MIN_CHARS", "").strip() or 4)
-EXTRACTOR_TIMEOUT: float = float(os.environ.get("EXTRACTOR_TIMEOUT", "").strip() or 20)
-
-AUTO_ACTOR: str = os.environ.get("CALENDAR_AUTO_ACTOR", "").strip() or "auto"
-
 # ---- 每年都过的日子（可选模块，seeder.py）----
 SEED_FILE: str = os.environ.get("CALENDAR_SEED_FILE", "").strip()
 SEED_YEARS: int = int(os.environ.get("CALENDAR_SEED_YEARS", "").strip() or 2)
-
-# ---- 推送（可选模块）----
-APNS_KEY_PATH: str = os.environ.get("APNS_KEY_PATH", "").strip()
-APNS_KEY_ID: str = os.environ.get("APNS_KEY_ID", "").strip()
-APNS_TEAM_ID: str = os.environ.get("APNS_TEAM_ID", "").strip()
-APNS_BUNDLE_ID: str = os.environ.get("APNS_BUNDLE_ID", "").strip()
-
 
 def token_required() -> bool:
     return bool(CALENDAR_TOKEN)

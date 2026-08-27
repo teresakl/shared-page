@@ -18,9 +18,8 @@
 
 ## 为什么这些日子要单独有个模块
 
-它们跟别的事件不一样：不是某天要做什么，是某天本身有意义。日历上会盖章
+它们跟临时安排不一样：不是某天要做什么，而是某天本身有意义。日历上会盖章
 （前端对 birthday / anniversary 这两种类型有专门的画法），而且提前很久就该看得见。
-交给自动抽取是不行的 —— 你不会每年在聊天里说一次「今天是我生日」。
 
 ## 农历怎么办
 
@@ -94,17 +93,21 @@ async def seed(storage) -> dict[str, int]:
 
         for year in range(this_year, this_year + config.SEED_YEARS):
             day = f"{year}-{month_day}"
+            metadata = {"seed": month_day}
+            rail = item.get("rail")
+            if isinstance(rail, bool):
+                metadata["rail"] = rail
             payload = {
                 "title": title,
                 "starts_at": day,
                 "precision": "day",
                 "event_type": kind,
-                "metadata": {"seed": month_day},
+                "metadata": metadata,
             }
             try:
                 event = await create_event(
                     storage, payload,
-                    actor=config.AUTO_ACTOR, source="seed",
+                    actor="kitty", source="seed",
                     event_id=_stable_id(month_day, kind, year),
                 )
             except (TypeError, ValueError) as exc:

@@ -92,13 +92,22 @@ class SeederTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(counts["created"], 0)
         self.assertEqual(counts["skipped"], 1)
 
-    async def test_seeded_events_wear_the_auto_handwriting(self):
+    async def test_seeded_rail_flag_is_preserved_in_metadata(self):
+        self.write_seeds([{"month_day": "03-15", "type": "birthday",
+                           "title": "生日", "rail": True}])
+        config.SEED_YEARS = 1
+        await seeder.seed(self.storage)
+        rows = await cal.list_events(self.storage, from_value="2020-01-01",
+                                     to_value="2099-12-31")
+        self.assertTrue(rows[0]["metadata"]["rail"])
+
+    async def test_seeded_events_use_the_user_handwriting(self):
         self.write_seeds([{"month_day": "03-15", "type": "birthday", "title": "生日"}])
         config.SEED_YEARS = 1
         await seeder.seed(self.storage)
         rows = await cal.list_events(self.storage, from_value="2020-01-01",
                                      to_value="2099-12-31")
-        self.assertEqual(rows[0]["created_by"], config.AUTO_ACTOR)
+        self.assertEqual(rows[0]["created_by"], "kitty")
         self.assertEqual(rows[0]["source"], "seed")
 
 
