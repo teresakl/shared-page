@@ -404,7 +404,6 @@
         <div class="legend">
           <span><i class="swatch" style="background:var(--ink-kitty)"></i>USER</span>
           <span><i class="swatch" style="background:var(--ink-master)"></i>ASSISTANT</span>
-          <span><i class="swatch" style="background:var(--ink-system)"></i>AUTO</span>
         </div>
       </div>`;
     el.querySelectorAll("[data-nav]").forEach((b) => b.addEventListener("click", () => shiftMonth(Number(b.dataset.nav))));

@@ -8,10 +8,11 @@
 
 <p align="center">
   <img src="docs/month.png" width="300" alt="月视图">
-  <img src="docs/day.png" width="300" alt="日视图">
+  <img src="docs/day-notes.png" width="300" alt="日视图 · 便签">
 </p>
 <p align="center">
-  <img src="docs/editor.png" width="280" alt="编辑安排">
+  <img src="docs/day-events.png" width="300" alt="日视图 · 安排">
+  <img src="docs/editor.png" width="300" alt="编辑安排">
 </p>
 
 *（截图是本 fork 本地网页的示范数据，USER / ASSISTANT。本机打开即可，不必先填钥匙。月历右上角是全年纪念日；编辑里可以勾做完。）*
