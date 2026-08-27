@@ -39,6 +39,7 @@
     editingNote: null,
     activePlaced: null,
     _draggingNote: false,
+    _draggingPlaced: false,
     _noteBlurBound: false,
   };
 
@@ -212,10 +213,14 @@
     }
   }
 
+  function qn(n) {
+    const x = Number(n);
+    return Number.isFinite(x) ? Math.round(x * 10) / 10 : 0;
+  }
   function clockOf(events, notes, placed) {
     const ev = (events || []).map((e) => `${e.id}:${e.revision || 0}:${e.title || ""}`).sort().join(",");
-    const ns = (notes || []).map((n) => `${n.id}:${n.body || n.comment || ""}:${n.y || ""}:${n.liked ? 1 : 0}`).sort().join(",");
-    const pl = (placed || []).map((p) => `${p.id}:${p.x}:${p.y}:${p.rotation || 0}:${p.scale || 1}`).sort().join(",");
+    const ns = (notes || []).map((n) => `${n.id}:${n.body || n.comment || ""}:${qn(n.y)}:${n.liked ? 1 : 0}`).sort().join(",");
+    const pl = (placed || []).map((p) => `${p.id}:${qn(p.x)}:${qn(p.y)}:${qn(p.rotation)}:${qn(p.scale == null ? 1 : p.scale)}`).sort().join(",");
     return `${ev}#${ns}#${pl}`;
   }
   function currentClock() {
@@ -231,7 +236,7 @@
     state.clock = currentClock();
     state.stale = false;
     state._pollGen = (state._pollGen || 0) + 1;
-    state._quietUntil = Date.now() + 2000;
+    state._quietUntil = Date.now() + 4000;
   }
   function staleBarHtml() {
     return `<div class="stale-bar">这一本在别处改过，先刷新再动<button type="button" data-refresh>刷新</button></div>`;
@@ -260,6 +265,7 @@
   }
   async function checkStale() {
     if (state.view === "unlock" || state.stale || state._writing) return;
+    if (state._draggingNote || state._draggingPlaced) return;
     if (document.hidden) return;
     if (Date.now() < (state._quietUntil || 0)) return;
     const gen = state._pollGen || 0;
@@ -273,7 +279,7 @@
         ]);
         if (gen !== (state._pollGen || 0)) return;
         const remote = clockOf(ev.events || [], [], []) + "#" + (unseen.days || []).slice().sort().join(",");
-        if (currentClock() && remote !== currentClock()) showStaleBanner();
+        if (state.clock && remote !== state.clock) showStaleBanner();
       } else if (state.view === "day") {
         const date = isoDate(state.year, state.month, state.day);
         const next = new Date(Date.UTC(state.year, state.month - 1, state.day + 1));
@@ -288,7 +294,7 @@
         ]);
         if (gen !== (state._pollGen || 0)) return;
         const remote = clockOf(ev.events || [], notes.notes || [], placed.items || []);
-        if (currentClock() && remote !== currentClock()) showStaleBanner();
+        if (state.clock && remote !== state.clock) showStaleBanner();
       }
     } catch (_) {}
   }
@@ -541,7 +547,7 @@
       </div>
       ${state.trayOpen ? `
       <div class="sticker-tray" id="sticker-tray">
-        <p class="hint">按住拖到这一页上；点选以后，上面转，右下角拉大拉小，叉可以撕掉</p>
+        <p class="hint">按住拖到这一页上。点空白处放下、收起。<button type="button" class="tray-close" data-close-tray>收起</button></p>
         <div class="row">${STICKERS.map((s) =>
           `<button type="button" data-sticker="${s.id}"><img src="/assets/stickers/${s.name}.png" alt=""></button>`
         ).join("")}</div>
@@ -555,6 +561,12 @@
     bindPlaced();
     bindStickerTray();
     $("fab").addEventListener("click", () => {
+      if (state.trayOpen) {
+        state.trayOpen = false;
+        state.fabOpen = true;
+        renderDay();
+        return;
+      }
       state.fabOpen = !state.fabOpen;
       $("fab-menu").hidden = !state.fabOpen;
     });
@@ -598,10 +610,7 @@
   function bindNotes() {
     if (!state._noteBlurBound) {
       state._noteBlurBound = true;
-      document.addEventListener("pointerdown", (ev) => {
-        if (state._draggingNote) return;
-        blurNotes(ev);
-      });
+      document.addEventListener("pointerdown", (ev) => blurPage(ev));
     }
     document.querySelectorAll(".note").forEach((node) => {
       const id = node.dataset.note;
@@ -616,6 +625,7 @@
           await api(`/api/v1/calendar/notes/${id}`, { method: "PATCH", body: JSON.stringify({ liked: next }) });
           n.liked = next;
           markDirty();
+          stampClock();
           renderDay();
         });
       }
@@ -677,6 +687,7 @@
           if (n) n.body = text;
           markDirty();
           await api(`/api/v1/calendar/notes/${id}`, { method: "PATCH", body: JSON.stringify({ body: text }) });
+          stampClock();
         });
       }
     });
@@ -710,8 +721,15 @@
     markDirty();
   }
 
-  function blurNotes(ev) {
-    if (ev.target.closest(".note") || ev.target.closest(".fab") || ev.target.closest(".fab-menu") || ev.target.closest(".modal")) return;
+  function blurPage(ev) {
+    if (state._draggingNote || state._draggingPlaced) return;
+    if (ev.target.closest(".modal")) return;
+    const onNote = ev.target.closest(".note");
+    const onPlaced = ev.target.closest("[data-placed]");
+    const onTray = ev.target.closest(".sticker-tray");
+    const onFab = ev.target.closest(".fab") || ev.target.closest(".fab-menu");
+    if (onNote || onFab) return;
+    let need = false;
     if (state.activeNote || state.editingNote) {
       if (state.editingNote) {
         const body = document.querySelector(`[data-note="${state.editingNote}"] .body`);
@@ -720,8 +738,17 @@
       }
       state.activeNote = null;
       state.editingNote = null;
-      renderDay();
+      need = true;
     }
+    if (state.activePlaced && !onPlaced) {
+      state.activePlaced = null;
+      need = true;
+    }
+    if (state.trayOpen && !onTray) {
+      state.trayOpen = false;
+      need = true;
+    }
+    if (need) renderDay();
   }
 
   function pagePoint(clientX, clientY) {
@@ -776,6 +803,7 @@
         const cy = r.top + r.height / 2;
         const start = Math.atan2(ev.clientY - cy, ev.clientX - cx);
         const startRot = item.rotation || 0;
+        state._draggingPlaced = true;
         const move = (e) => {
           item.rotation = startRot + (Math.atan2(e.clientY - cy, e.clientX - cx) - start) * 180 / Math.PI;
           applyPlacedStyle(node, item);
@@ -783,6 +811,7 @@
         const up = async () => {
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
+          state._draggingPlaced = false;
           await savePlaced();
         };
         window.addEventListener("pointermove", move);
@@ -801,6 +830,7 @@
         const cy = r.top + r.height / 2;
         const startDist = Math.hypot(ev.clientX - cx, ev.clientY - cy) || 1;
         const startScale = item.scale || 1;
+        state._draggingPlaced = true;
         const move = (e) => {
           const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
           item.scale = Math.min(2.4, Math.max(0.4, startScale * dist / startDist));
@@ -809,6 +839,7 @@
         const up = async () => {
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
+          state._draggingPlaced = false;
           await savePlaced();
         };
         window.addEventListener("pointermove", move);
@@ -828,6 +859,7 @@
         const ox = item.x;
         const oy = item.y;
         let moved = false;
+        state._draggingPlaced = true;
         const onMove = (e) => {
           const dx = e.clientX - startX;
           const dy = e.clientY - startY;
@@ -840,6 +872,7 @@
         const onUp = async () => {
           window.removeEventListener("pointermove", onMove);
           window.removeEventListener("pointerup", onUp);
+          state._draggingPlaced = false;
           if (!moved) {
             state.activePlaced = state.activePlaced === id ? null : id;
             renderDay();
@@ -867,6 +900,11 @@
   function bindStickerTray() {
     const tray = $("sticker-tray");
     if (!tray) return;
+    tray.querySelector("[data-close-tray]")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      state.trayOpen = false;
+      renderDay();
+    });
     tray.querySelectorAll("[data-sticker]").forEach((btn) => {
       btn.addEventListener("pointerdown", (ev) => {
         ev.preventDefault();
@@ -881,6 +919,7 @@
         document.body.appendChild(ghost);
         let lastX = ev.clientX;
         let lastY = ev.clientY;
+        state._draggingPlaced = true;
         const onMove = (e) => {
           lastX = e.clientX;
           lastY = e.clientY;
@@ -891,6 +930,7 @@
           window.removeEventListener("pointermove", onMove);
           window.removeEventListener("pointerup", finish);
           window.removeEventListener("pointercancel", finish);
+          state._draggingPlaced = false;
           ghost.remove();
           const pt = pagePoint(e.clientX || lastX, e.clientY || lastY);
           if (!pt) { flash("这一页还没准备好"); return; }
@@ -931,6 +971,7 @@
     const date = isoDate(state.year, state.month, state.day);
     await api(`/api/v1/calendar/placed/${date}`, { method: "PUT", body: JSON.stringify({ items: state.placed }) });
     markDirty();
+    stampClock();
   }
 
   function markDirty() { state.dirty = true; }
@@ -1101,6 +1142,7 @@
     state.activeNote = created.id;
     state.editingNote = created.id;
     markDirty();
+    stampClock();
     renderDay();
     requestAnimationFrame(() => document.querySelector(`[data-note="${created.id}"] .body`)?.focus());
   }
@@ -1122,8 +1164,9 @@
       const fd = new FormData();
       fd.append("file", blob, "photo.jpg");
       const saved = await api("/api/v1/calendar/photos", { method: "POST", body: fd });
+      const id = uid();
       state.placed.push({
-        id: uid(),
+        id,
         kind: "photo",
         photoFile: saved.file,
         x: 220,
@@ -1132,6 +1175,7 @@
         rotation: -4,
         placedAt: new Date().toISOString(),
       });
+      state.activePlaced = id;
       await savePlaced();
       renderDay();
     });

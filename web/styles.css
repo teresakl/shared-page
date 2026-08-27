@@ -618,6 +618,15 @@ button { cursor: pointer; }
   object-fit: contain;
   pointer-events: none;
 }
+.sticker-tray .tray-close {
+  margin-left: 8px;
+  border: 1.2px solid var(--paper-border);
+  background: #fff;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  vertical-align: middle;
+}
 .ghost-sticker {
   position: fixed;
   width: 72px;
@@ -674,7 +683,7 @@ button { cursor: pointer; }
   font-size: 26px;
   line-height: 1;
   color: var(--ink-title);
-  z-index: 30;
+  z-index: 42;
 }
 .fab-menu {
   position: fixed;
