@@ -220,7 +220,7 @@
   function clockOf(events, notes, placed) {
     const ev = (events || []).map((e) => `${e.id}:${e.revision || 0}:${e.title || ""}`).sort().join(",");
     const ns = (notes || []).map((n) => `${n.id}:${n.body || n.comment || ""}:${qn(n.y)}:${n.liked ? 1 : 0}`).sort().join(",");
-    const pl = (placed || []).map((p) => `${p.id}:${qn(p.x)}:${qn(p.y)}:${qn(p.rotation)}:${qn(p.scale == null ? 1 : p.scale)}`).sort().join(",");
+    const pl = (placed || []).map((p) => `${p.id}:${qn(p.x)}:${qn(p.y)}:${qn(p.rotation)}:${qn(p.scale == null ? 1 : p.scale)}:${qn(p.z)}`).sort().join(",");
     return `${ev}#${ns}#${pl}`;
   }
   function currentClock() {
@@ -487,7 +487,9 @@
       const editing = a === "kitty" && state.editingNote === n.id;
       const active = a === "kitty" && state.activeNote === n.id;
       const liked = n.liked ? `<img class="heart" src="/assets/stickers/red-heart-outline.png" alt="">` : "";
-      return `<div class="note ${a}${active ? " active" : ""}${editing ? " editing" : ""}" data-note="${esc(n.id)}" data-author="${a}" style="top:${y}px${x == null ? "" : `;left:${x}px`}">
+      const z = Number(noteXRecord(n.id)?.z || 3);
+      const layer = active ? Math.max(z, 20) : z;
+      return `<div class="note ${a}${active ? " active" : ""}${editing ? " editing" : ""}" data-note="${esc(n.id)}" data-author="${a}" style="top:${y}px${x == null ? "" : `;left:${x}px`};z-index:${layer}">
         <div class="tape"></div>
         ${active ? `<button type="button" class="x" data-del-note="${esc(n.id)}">✕</button>` : ""}
         <div class="body" ${editing ? "contenteditable" : ""}>${esc(n.body || n.comment || "")}</div>
@@ -499,11 +501,13 @@
       const rot = item.rotation || 0;
       const scale = item.scale || 1;
       const selected = state.activePlaced === item.id;
+      const z = Number(item.z || 4);
+      const layer = selected ? Math.max(z, 21) : z;
       const handles = selected ? `
         <button type="button" class="x" data-del-placed="${esc(item.id)}">✕</button>
         <button type="button" class="rot" data-rot-placed="${esc(item.id)}" aria-label="转"></button>
         <button type="button" class="scl" data-scl-placed="${esc(item.id)}" aria-label="大小"></button>` : "";
-      const box = `left:${item.x}px;top:${item.y}px;--s:${scale};transform:translate(-50%,-50%) rotate(${rot}deg) scale(${scale})`;
+      const box = `left:${item.x}px;top:${item.y}px;z-index:${layer};--s:${scale};transform:translate(-50%,-50%) rotate(${rot}deg) scale(${scale})`;
       if (item.kind === "photo") {
         return `<div class="placed photo${selected ? " selected" : ""}" data-placed="${esc(item.id)}" style="${box}">
           ${handles}
@@ -606,6 +610,31 @@
     const rec = noteXRecord(noteId);
     return rec && Number.isFinite(rec.x) ? rec.x : null;
   }
+  function nextZ() {
+    let m = 4;
+    for (const p of state.placed) {
+      const z = Number(p.z);
+      if (Number.isFinite(z) && z > m) m = z;
+    }
+    return m + 1;
+  }
+  function raisePlaced(id) {
+    const item = state.placed.find((p) => p.id === id);
+    if (item) item.z = nextZ();
+  }
+  function raiseNote(id) {
+    const rec = noteXRecord(id);
+    const z = nextZ();
+    if (rec) rec.z = z;
+    else {
+      state.placed.push({
+        id: uid(),
+        kind: "note-x",
+        noteId: id,
+        z,
+      });
+    }
+  }
 
   function bindNotes() {
     if (!state._noteBlurBound) {
@@ -659,7 +688,12 @@
           window.removeEventListener("pointercancel", onUp);
           state._draggingNote = false;
           if (!moved) {
-            if (!mine) return;
+            raiseNote(id);
+            await savePlaced();
+            if (!mine) {
+              renderDay();
+              return;
+            }
             if (state.activeNote === id) {
               state.editingNote = id;
               renderDay();
@@ -671,6 +705,7 @@
             }
             return;
           }
+          raiseNote(id);
           const x = parseFloat(node.style.left);
           const y = parseFloat(node.style.top) || 0;
           await saveNotePos(id, x, y);
@@ -776,6 +811,7 @@
     node.style.top = `${item.y}px`;
     node.style.setProperty("--s", String(scale));
     node.style.transform = `translate(-50%, -50%) rotate(${rot}deg) scale(${scale})`;
+    node.style.zIndex = String(item.z || 4);
   }
 
   function bindPlaced() {
@@ -874,10 +910,13 @@
           window.removeEventListener("pointerup", onUp);
           state._draggingPlaced = false;
           if (!moved) {
-            state.activePlaced = state.activePlaced === id ? null : id;
+            raisePlaced(id);
+            state.activePlaced = id;
+            await savePlaced();
             renderDay();
             return;
           }
+          raisePlaced(id);
           await savePlaced();
         };
         window.addEventListener("pointermove", onMove);
@@ -958,6 +997,7 @@
       scale: 1,
       rotation: (Math.random() * 10) - 5,
       placedAt: new Date().toISOString(),
+      z: nextZ(),
     });
     state.activePlaced = id;
     await savePlaced();
@@ -1174,6 +1214,7 @@
         scale: 1,
         rotation: -4,
         placedAt: new Date().toISOString(),
+        z: nextZ(),
       });
       state.activePlaced = id;
       await savePlaced();
