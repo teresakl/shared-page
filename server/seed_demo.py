@@ -46,6 +46,7 @@ async def main() -> None:
                 "starts_at": "2026-08-03T20:00:00+08:00",
                 "ends_at": "2026-08-03T22:30:00+08:00",
                 "precision": "minute",
+                "metadata": {"done": True, "keyword": "电影"},
             },
             actor="master",
             source="manual",
@@ -127,19 +128,19 @@ async def main() -> None:
                 "id": str(uuid.uuid4()),
                 "kind": "sticker",
                 "stickerID": STICKERS["cat"],
-                "x": 48, "y": 520, "scale": 1, "rotation": -6,
+                "x": 22, "y": 610, "scale": 0.92, "rotation": -8,
             },
             {
                 "id": str(uuid.uuid4()),
                 "kind": "sticker",
                 "stickerID": STICKERS["cup"],
-                "x": 250, "y": 640, "scale": 1, "rotation": 4,
+                "x": 268, "y": 560, "scale": 1, "rotation": 6,
             },
             {
                 "id": str(uuid.uuid4()),
                 "kind": "sticker",
                 "stickerID": STICKERS["heart"],
-                "x": 300, "y": 280, "scale": 0.9, "rotation": 8,
+                "x": 318, "y": 188, "scale": 0.9, "rotation": 8,
             },
         ])
 
@@ -150,6 +151,7 @@ async def main() -> None:
                 "starts_at": "2026-08-25",
                 "precision": "day",
                 "event_type": "anniversary",
+                "metadata": {"rail": True},
             },
             actor="master",
             source="manual",
@@ -192,6 +194,31 @@ async def main() -> None:
                 "x": 260, "y": 560, "scale": 1, "rotation": 3,
             },
         ])
+
+        await cal.create_event(
+            storage,
+            {
+                "title": "生日",
+                "starts_at": "2026-03-15",
+                "precision": "day",
+                "event_type": "birthday",
+                "metadata": {"rail": True},
+            },
+            actor="kitty",
+            source="manual",
+        )
+        await cal.create_event(
+            storage,
+            {
+                "title": "约定",
+                "starts_at": "2026-11-11",
+                "precision": "day",
+                "event_type": "anniversary",
+                "metadata": {"rail": True},
+            },
+            actor="master",
+            source="manual",
+        )
         print("demo seed ok")
         print(f"notes touched: {n1['id'][:8]}…")
     finally:

@@ -10,8 +10,11 @@
   <img src="docs/month.png" width="300" alt="月视图">
   <img src="docs/day.png" width="300" alt="日视图">
 </p>
+<p align="center">
+  <img src="docs/editor.png" width="280" alt="编辑安排">
+</p>
 
-*（截图是本 fork 本地网页的示范数据，USER / ASSISTANT。本机打开即可，不必先填钥匙。）*
+*（截图是本 fork 本地网页的示范数据，USER / ASSISTANT。本机打开即可，不必先填钥匙。月历右上角是全年纪念日；编辑里可以勾做完。）*
 
 ---
 
@@ -83,7 +86,7 @@
 
 **`ends_at` 是开区间**——一件事「到 8 月 16 日」，`ends_at` 要写 8 月 17 日。整天的事件把 `precision` 写成 `"day"`，起点只给日期就行。
 
-`event_type` 前端认三种：`anniversary` 和 `birthday` 会在那天盖一个爱心章；`period` 画成一条横带。别的值不影响显示，随便写，当标签用。
+`event_type` 前端认三种：`anniversary` 和 `birthday` 会在那天盖一个爱心章；`period` 画成一条横带。别的值不影响显示，随便写，当标签用。安排还可以勾「做完了」——日视图只划掉，不会从时间轴上收走。
 
 ### `update` — 改一件事，或者改一张便签
 
@@ -397,11 +400,13 @@ app 会在这些日子上画一个红色感叹号，你点进那一页看过之�
 
 ```json
 [
-  {"month_day": "03-15", "type": "birthday",    "title": "生日"},
-  {"month_day": "06-01", "type": "anniversary", "title": "纪念日"},
+  {"month_day": "03-15", "type": "birthday",    "title": "生日", "rail": true},
+  {"month_day": "06-01", "type": "anniversary", "title": "纪念日", "rail": true},
   {"month_day": "12-25", "type": "holiday",     "title": "圣诞"}
 ]
 ```
+
+生日和纪念日可以加 `"rail": true`，会出现在月历右上角，最多三条。节日不会钉上去。网页编辑里也可以把某一条钉上去或拿下来。
 
 在 `.env` 里写：
 
@@ -506,6 +511,10 @@ https://github.com/KKarsyline/shared-page
 - 便签拖动和文字选择拆开，电脑和手机都能左右挪
 - 贴纸可拖、可删、可旋转缩放
 - 贴纸和便签颜色用原作者素材，不另换一套
+- 月历右上角可钉最多三条全年纪念日；种子文件里写 `"rail": true`，编辑里也能钉
+- 安排可勾「做完了」，日视图划掉、留在原位
+- 编辑里的点选框贴在文字旁边；月历短词写在格子底部，挤了可以勾优先显示
+- 电脑、手机或 Agent 改过同一本时，停留在页面上会提醒先刷新
 - 补了网页侧给 AI 用的贴纸坐标 / 照片存储接口；MCP 六个动作和播种模块仍是原作者的
 - 去掉 iOS 工程，避免把两套前端叠在一个仓库里
 

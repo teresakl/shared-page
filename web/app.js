@@ -26,9 +26,12 @@
     month: 0,
     day: 1,
     events: [],
+    yearEvents: [],
     notes: [],
     placed: [],
     unseen: new Set(),
+    clock: "",
+    stale: false,
     dirty: false,
     fabOpen: false,
     trayOpen: false,
@@ -87,6 +90,73 @@
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[c]));
   }
+  const RAIL_DEFAULT = [];
+  function metaOf(ev) {
+    const raw = ev && ev.metadata;
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
+    if (typeof raw === "string" && raw) {
+      try {
+        const o = JSON.parse(raw);
+        return o && typeof o === "object" ? o : {};
+      } catch (_) { return {}; }
+    }
+    return {};
+  }
+  function monthKeyword(ev) {
+    const k = String(metaOf(ev).keyword || "").trim();
+    if (k) return [...k].slice(0, 6).join("");
+    const t = String(ev.title || "").trim();
+    const chars = [...t];
+    return chars.length <= 5 ? t : chars.slice(0, 5).join("");
+  }
+  function isStampType(ev) {
+    return ["birthday", "anniversary"].includes(ev.event_type);
+  }
+  function monthLines(dayEvents) {
+    const items = dayEvents.filter((e) => !isStampType(e));
+    if (items.length <= 2) return items;
+    const pinned = items.filter((e) => metaOf(e).pin);
+    return (pinned.length ? pinned : items).slice(0, 2);
+  }
+  function railEvents(y) {
+    const pool = (state.yearEvents && state.yearEvents.length) ? state.yearEvents : (state.events || []);
+    const marks = pool.filter((e) => {
+      if (e.status === "deleted") return false;
+      if (!isStampType(e)) return false;
+      const s = parseUTC(e.starts_at);
+      if (!s) return false;
+      return inShanghai(s).getUTCFullYear() === y;
+    });
+    const shown = marks.filter((e) => {
+      const rail = metaOf(e).rail;
+      if (rail === true) return true;
+      if (rail === false) return false;
+      return RAIL_DEFAULT.includes(e.title);
+    });
+    const uniq = [];
+    const seen = new Set();
+    shown.sort((a, b) => (parseUTC(a.starts_at) || 0) - (parseUTC(b.starts_at) || 0));
+    for (const e of shown) {
+      if (seen.has(e.title)) continue;
+      seen.add(e.title);
+      uniq.push(e);
+      if (uniq.length === 3) break;
+    }
+    return uniq;
+  }
+  function mdOf(ev) {
+    const s = inShanghai(parseUTC(ev.starts_at));
+    if (!s) return "";
+    return `${pad(s.getUTCMonth() + 1)}.${pad(s.getUTCDate())}`;
+  }
+  async function patchEventMeta(id, partial) {
+    const ev = state.events.find((e) => e.id === id);
+    const next = Object.assign({}, metaOf(ev), partial);
+    await api(`/api/v1/calendar/events/${id}`, { method: "PATCH", body: JSON.stringify({ metadata: next }) });
+    if (ev) ev.metadata = next;
+    const yev = state.yearEvents.find((e) => e.id === id);
+    if (yev) yev.metadata = next;
+  }
 
   function uid() {
     if (globalThis.crypto && typeof crypto.randomUUID === "function") {
@@ -114,21 +184,119 @@
   }
 
   async function api(path, opts = {}) {
+    const method = String(opts.method || "GET").toUpperCase();
+    const guarded = method !== "GET" && /\/(events|notes|placed|photos)/.test(path);
+    if (guarded && state.stale) {
+      flash("先刷新，这一本别处改过");
+      throw new Error("stale");
+    }
+    if (guarded) state._writing = true;
     const headers = Object.assign({ "X-Calendar-Token": state.token }, opts.headers || {});
     if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
       headers["Content-Type"] = "application/json";
     }
-    const res = await fetch(path, Object.assign({}, opts, { headers }));
-    if (res.status === 401) throw new Error("钥匙不对");
-    if (!res.ok) {
-      let detail = res.statusText;
-      try { detail = (await res.json()).detail || detail; } catch (_) {}
-      throw new Error(detail);
+    try {
+      const res = await fetch(path, Object.assign({}, opts, { headers }));
+      if (res.status === 401) throw new Error("钥匙不对");
+      if (!res.ok) {
+        let detail = res.statusText;
+        try { detail = (await res.json()).detail || detail; } catch (_) {}
+        throw new Error(detail);
+      }
+      if (res.status === 204) return null;
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) return res.json();
+      return res;
+    } finally {
+      if (guarded) state._writing = false;
     }
-    if (res.status === 204) return null;
-    const ct = res.headers.get("content-type") || "";
-    if (ct.includes("application/json")) return res.json();
-    return res;
+  }
+
+  function clockOf(events, notes, placed) {
+    const ev = (events || []).map((e) => `${e.id}:${e.revision || 0}:${e.title || ""}`).sort().join(",");
+    const ns = (notes || []).map((n) => `${n.id}:${n.body || n.comment || ""}:${n.y || ""}:${n.liked ? 1 : 0}`).sort().join(",");
+    const pl = (placed || []).map((p) => `${p.id}:${p.x}:${p.y}:${p.rotation || 0}:${p.scale || 1}`).sort().join(",");
+    return `${ev}#${ns}#${pl}`;
+  }
+  function currentClock() {
+    if (state.view === "month") {
+      return clockOf(state.yearEvents, [], []) + "#" + [...state.unseen].sort().join(",");
+    }
+    if (state.view === "day") {
+      return clockOf(state.events, state.notes, state.placed);
+    }
+    return "";
+  }
+  function stampClock() {
+    state.clock = currentClock();
+    state.stale = false;
+    state._pollGen = (state._pollGen || 0) + 1;
+    state._quietUntil = Date.now() + 2000;
+  }
+  function staleBarHtml() {
+    return `<div class="stale-bar">这一本在别处改过，先刷新再动<button type="button" data-refresh>刷新</button></div>`;
+  }
+  function bindStale(host) {
+    host.querySelector("[data-refresh]")?.addEventListener("click", () => refreshNow());
+  }
+  function showStaleBanner() {
+    state.stale = true;
+    const host = state.view === "month" ? $("month-view") : $("day-view");
+    if (!host || host.hidden) return;
+    if (host.querySelector(".stale-bar")) return;
+    host.insertAdjacentHTML("afterbegin", staleBarHtml());
+    bindStale(host);
+  }
+  async function refreshNow() {
+    state.stale = false;
+    closeModal();
+    if (state.view === "day") {
+      await loadDay();
+      renderDay();
+    } else {
+      await loadMonth();
+      renderMonth();
+    }
+  }
+  async function checkStale() {
+    if (state.view === "unlock" || state.stale || state._writing) return;
+    if (document.hidden) return;
+    if (Date.now() < (state._quietUntil || 0)) return;
+    const gen = state._pollGen || 0;
+    try {
+      if (state.view === "month") {
+        const y = state.year;
+        const q = new URLSearchParams({ from: `${y}-01-01T00:00:00+08:00`, to: `${y + 1}-01-01T00:00:00+08:00`, limit: "500" });
+        const [ev, unseen] = await Promise.all([
+          api(`/api/v1/calendar/events?${q}`),
+          api("/api/v1/calendar/unseen"),
+        ]);
+        if (gen !== (state._pollGen || 0)) return;
+        const remote = clockOf(ev.events || [], [], []) + "#" + (unseen.days || []).slice().sort().join(",");
+        if (currentClock() && remote !== currentClock()) showStaleBanner();
+      } else if (state.view === "day") {
+        const date = isoDate(state.year, state.month, state.day);
+        const next = new Date(Date.UTC(state.year, state.month - 1, state.day + 1));
+        const from = `${date}T00:00:00+08:00`;
+        const to = `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}T00:00:00+08:00`;
+        const q = new URLSearchParams({ from, to, limit: "200" });
+        const nq = new URLSearchParams({ date, limit: "200" });
+        const [ev, notes, placed] = await Promise.all([
+          api(`/api/v1/calendar/events?${q}`),
+          api(`/api/v1/calendar/notes?${nq}`),
+          api(`/api/v1/calendar/placed/${date}`),
+        ]);
+        if (gen !== (state._pollGen || 0)) return;
+        const remote = clockOf(ev.events || [], notes.notes || [], placed.items || []);
+        if (currentClock() && remote !== currentClock()) showStaleBanner();
+      }
+    } catch (_) {}
+  }
+  function startWatch() {
+    if (state._watch) return;
+    state._watch = setInterval(checkStale, 20000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) checkStale(); });
+    window.addEventListener("focus", () => checkStale());
   }
 
   function monthRange(y, m) {
@@ -139,14 +307,18 @@
   }
 
   async function loadMonth() {
-    const { from, to } = monthRange(state.year, state.month);
+    const y = state.year;
+    const from = `${y}-01-01T00:00:00+08:00`;
+    const to = `${y + 1}-01-01T00:00:00+08:00`;
     const q = new URLSearchParams({ from, to, limit: "500" });
     const [ev, unseen] = await Promise.all([
       api(`/api/v1/calendar/events?${q}`),
       api("/api/v1/calendar/unseen"),
     ]);
     state.events = ev.events || [];
+    state.yearEvents = state.events;
     state.unseen = new Set(unseen.days || []);
+    stampClock();
   }
 
   async function loadDay() {
@@ -166,6 +338,7 @@
     state.placed = placed.items || [];
     await api("/api/v1/calendar/unseen/seen", { method: "POST", body: JSON.stringify({ date }) });
     state.unseen.delete(date);
+    stampClock();
   }
 
   function renderUnlock() {
@@ -200,21 +373,29 @@
         ${spans.slice(0, 2).map((s, idx) => `<div class="band ${authorOf(s)}" style="top:${17 + idx * 36}px"></div>`).join("")}
         ${stamp ? `<img class="stamp" src="/assets/stickers/stamp-heart-mini.png" alt="">` : ""}
         <div class="num">${disp}</div>
-        <div class="titles">${dayEvents.slice(0, 4).map((e) =>
-          `<div style="color:${authorOf(e) === "master" ? "var(--ink-master)" : authorOf(e) === "auto" ? "var(--ink-system)" : "var(--ink-kitty)"}">${esc(e.title)}</div>`
-        ).join("")}</div>
+        <div class="titles">${monthLines(dayEvents).map((e) => {
+          const done = !!metaOf(e).done;
+          const ink = authorOf(e) === "master" ? "var(--ink-master)" : authorOf(e) === "auto" ? "var(--ink-system)" : "var(--ink-kitty)";
+          return `<div class="kw${done ? " done" : ""}" style="color:${ink}">${done ? "✓ " : ""}${esc(monthKeyword(e))}</div>`;
+        }).join("")}</div>
         ${state.unseen.has(date) ? `<img class="new" src="/assets/stickers/red-exclaim-double.png" alt="">` : ""}
       </div>`);
     }
     el.innerHTML = `
+      ${state.stale ? staleBarHtml() : ""}
       <div class="header">
         <div>
           <h1>${MONTHS_EN[m - 1]}<span class="year">${y}</span></h1>
           <p class="sub">tap a day to open it</p>
         </div>
-        <div class="nav">
-          <button type="button" data-nav="-1">◀</button>
-          <button type="button" data-nav="1">▶</button>
+        <div class="nav-col">
+          <div class="nav">
+            <button type="button" data-nav="-1">◀</button>
+            <button type="button" data-nav="1">▶</button>
+          </div>
+          <div class="rail">${railEvents(y).map((e) =>
+            `<button type="button" data-rail="${esc(isoDate(inShanghai(parseUTC(e.starts_at)).getUTCFullYear(), inShanghai(parseUTC(e.starts_at)).getUTCMonth() + 1, inShanghai(parseUTC(e.starts_at)).getUTCDate()))}"><span class="md">${mdOf(e)}</span>${esc(e.title)}</button>`
+          ).join("")}</div>
         </div>
       </div>
       <div class="card">
@@ -228,6 +409,8 @@
       </div>`;
     el.querySelectorAll("[data-nav]").forEach((b) => b.addEventListener("click", () => shiftMonth(Number(b.dataset.nav))));
     el.querySelectorAll("[data-day]").forEach((c) => c.addEventListener("click", () => openDay(Number(c.dataset.day))));
+    el.querySelectorAll("[data-rail]").forEach((b) => b.addEventListener("click", () => jumpDate(b.dataset.rail)));
+    bindStale(el);
   }
 
   function eventsOnDay(day) {
@@ -245,7 +428,7 @@
       if (isSpan(ev) || ev.event_type === "period") return false;
       if (!isAllDay(ev)) return false;
       const s = parseUTC(ev.starts_at);
-      return s && inShanghai(s).getUTCDate() === day && inShanghai(s).getUTCMonth() + 1 === state.month;
+      return s && inShanghai(s).getUTCFullYear() === state.year && inShanghai(s).getUTCDate() === day && inShanghai(s).getUTCMonth() + 1 === state.month;
     }));
   }
 
@@ -285,7 +468,8 @@
       const h = Math.max(34, dur / 60 * ROW_H - 3);
       const a = authorOf(ev);
       const endH = sh * 60 + sm + dur;
-      return `<div class="event-block ${a}" data-event="${esc(ev.id)}" style="top:${top}px;height:${h}px">
+      const done = !!metaOf(ev).done;
+      return `<div class="event-block ${a}${done ? " done" : ""}" data-event="${esc(ev.id)}" style="top:${top}px;height:${h}px">
         <div class="t">${esc(ev.title)}</div>
         <div class="meta">${pad(sh)}:${pad(sm)}–${pad(Math.floor(endH / 60))}:${pad(endH % 60)} · ${authorName(a)}</div>
       </div>`;
@@ -295,10 +479,10 @@
       const a = authorOf(n);
       const y = n.y ?? (34 + i * 116);
       const x = noteLeft(n.id);
-      const editing = state.editingNote === n.id;
-      const active = state.activeNote === n.id;
+      const editing = a === "kitty" && state.editingNote === n.id;
+      const active = a === "kitty" && state.activeNote === n.id;
       const liked = n.liked ? `<img class="heart" src="/assets/stickers/red-heart-outline.png" alt="">` : "";
-      return `<div class="note ${a}${active ? " active" : ""}${editing ? " editing" : ""}" data-note="${esc(n.id)}" style="top:${y}px${x == null ? "" : `;left:${x}px`}">
+      return `<div class="note ${a}${active ? " active" : ""}${editing ? " editing" : ""}" data-note="${esc(n.id)}" data-author="${a}" style="top:${y}px${x == null ? "" : `;left:${x}px`}">
         <div class="tape"></div>
         ${active ? `<button type="button" class="x" data-del-note="${esc(n.id)}">✕</button>` : ""}
         <div class="body" ${editing ? "contenteditable" : ""}>${esc(n.body || n.comment || "")}</div>
@@ -333,11 +517,15 @@
     }).join("");
 
     el.innerHTML = `
+      ${state.stale ? staleBarHtml() : ""}
       <button type="button" class="back" id="back-month"><span class="chev">‹</span><span class="mname">${MONTHS_EN[state.month - 1]}</span></button>
       <div class="week-strip" id="week-strip">${weekStripHtml()}</div>
       <div id="day-sheet">
         <div class="title-row"><span class="big">${MONTHS_EN[state.month - 1]} ${state.day}</span><span class="wd">${wd}</span></div>
-        <div class="all-day">${allday.map((e) => `<div class="span">${esc(e.title)}</div>`).join("")}</div>
+        <div class="all-day">${allday.map((e) => {
+          const done = !!metaOf(e).done;
+          return `<div class="span${done ? " done" : ""}" data-event="${esc(e.id)}">${esc(e.title)}</div>`;
+        }).join("")}</div>
         <div class="timeline" id="timeline">
           ${hours.join("")}
           ${eventHtml}
@@ -361,6 +549,7 @@
       </div>` : ""}`;
 
     $("back-month").addEventListener("click", () => backToMonth());
+    bindStale(el);
     el.querySelectorAll("[data-strip]").forEach((b) => b.addEventListener("click", () => jumpDate(b.dataset.strip)));
     el.querySelectorAll("[data-event]").forEach((b) => b.addEventListener("click", () => openEventEditor(b.dataset.event)));
     bindNotes();
@@ -417,11 +606,26 @@
     }
     document.querySelectorAll(".note").forEach((node) => {
       const id = node.dataset.note;
+      const mine = node.dataset.author === "kitty";
+      if (!mine) {
+        node.addEventListener("dblclick", async (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const n = state.notes.find((x) => x.id === id);
+          if (!n) return;
+          const next = !n.liked;
+          await api(`/api/v1/calendar/notes/${id}`, { method: "PATCH", body: JSON.stringify({ liked: next }) });
+          n.liked = next;
+          markDirty();
+          renderDay();
+        });
+      }
       node.addEventListener("pointerdown", (ev) => {
         if (ev.target.closest("[data-del-note]")) return;
-        if (state.editingNote === id && ev.target.closest(".body")) return;
-        ev.preventDefault();
+        if (mine && state.editingNote === id && ev.target.closest(".body")) return;
+        if (!mine && ev.detail >= 2) return;
         ev.stopPropagation();
+        if (mine) ev.preventDefault();
         const tl = $("timeline");
         const maxX = Math.max(8, (tl ? tl.clientWidth : 390) - node.offsetWidth - 8);
         const startX = ev.clientX;
@@ -446,6 +650,7 @@
           window.removeEventListener("pointercancel", onUp);
           state._draggingNote = false;
           if (!moved) {
+            if (!mine) return;
             if (state.activeNote === id) {
               state.editingNote = id;
               renderDay();
@@ -466,13 +671,13 @@
         window.addEventListener("pointercancel", onUp);
       });
       const body = node.querySelector(".body");
-      if (body && body.isContentEditable) {
+      if (mine && body && body.isContentEditable) {
         body.addEventListener("blur", async () => {
           const text = body.innerText.trim() || "写点什么";
-          await api(`/api/v1/calendar/notes/${id}`, { method: "PATCH", body: JSON.stringify({ body: text }) });
           const n = state.notes.find((x) => x.id === id);
           if (n) n.body = text;
           markDirty();
+          await api(`/api/v1/calendar/notes/${id}`, { method: "PATCH", body: JSON.stringify({ body: text }) });
         });
       }
     });
@@ -509,6 +714,11 @@
   function blurNotes(ev) {
     if (ev.target.closest(".note") || ev.target.closest(".fab") || ev.target.closest(".fab-menu") || ev.target.closest(".modal")) return;
     if (state.activeNote || state.editingNote) {
+      if (state.editingNote) {
+        const body = document.querySelector(`[data-note="${state.editingNote}"] .body`);
+        const n = state.notes.find((x) => x.id === state.editingNote);
+        if (body && n) n.body = body.innerText.trim() || n.body;
+      }
       state.activeNote = null;
       state.editingNote = null;
       renderDay();
@@ -776,6 +986,7 @@
     await uploadPage();
     const [y, m, d] = key.split("-").map(Number);
     state.year = y; state.month = m; state.day = d;
+    state.view = "day";
     await loadDay();
     renderDay();
   }
@@ -804,6 +1015,7 @@
   function openEventEditor(id) {
     const ev = id ? state.events.find((e) => e.id === id) : null;
     let sh = 20, sm = 0, eh = 21, em = 0, allDay = false, title = "";
+    const md = metaOf(ev);
     if (ev) {
       title = ev.title || "";
       allDay = isAllDay(ev);
@@ -812,15 +1024,22 @@
       sh = s.getUTCHours(); sm = s.getUTCMinutes();
       eh = e.getUTCHours(); em = e.getUTCMinutes();
     }
+    const stamp = ev && isStampType(ev);
+    const railOn = md.rail === true || (md.rail !== false && RAIL_DEFAULT.includes(title));
     openModal(`
       <h2>${ev ? "改一条" : "写一条"}</h2>
       <label>标题</label>
       <input id="ev-title" value="${esc(title)}" maxlength="160">
-      <label><input type="checkbox" id="ev-all" ${allDay ? "checked" : ""}> 全天</label>
+      <label>月历短词</label>
+      <input id="ev-keyword" value="${esc(md.keyword || "")}" maxlength="6" placeholder="空着就自动收成几个字">
       <label>开始</label>
       <input id="ev-start" type="time" value="${pad(sh)}:${pad(sm)}">
       <label>结束</label>
       <input id="ev-end" type="time" value="${pad(eh)}:${pad(em)}">
+      <label class="check"><input type="checkbox" id="ev-all" ${allDay ? "checked" : ""}> 全天</label>
+      <label class="check"><input type="checkbox" id="ev-pin" ${md.pin ? "checked" : ""}> 日程过多，月历优先显示</label>
+      <label class="check"><input type="checkbox" id="ev-done" ${md.done ? "checked" : ""}> 做完了</label>
+      ${stamp ? `<label class="check"><input type="checkbox" id="ev-rail" ${railOn ? "checked" : ""}> 钉在右上角（最多三条）</label>` : ""}
       <div class="actions">
         <button type="button" id="ev-save">放下</button>
         <button type="button" class="ghost" data-close>先不写了</button>
@@ -834,9 +1053,22 @@
       const [a, b] = $("modal").querySelector("#ev-start").value.split(":").map(Number);
       const [c, d] = $("modal").querySelector("#ev-end").value.split(":").map(Number);
       const date = isoDate(state.year, state.month, state.day);
+      const keyword = $("modal").querySelector("#ev-keyword").value.trim();
+      const pin = $("modal").querySelector("#ev-pin").checked;
+      const done = $("modal").querySelector("#ev-done").checked;
+      const railBox = $("modal").querySelector("#ev-rail");
+      if (railBox && railBox.checked) {
+        const already = railEvents(state.year).some((e) => e.id === (ev && ev.id));
+        if (!already && railEvents(state.year).length >= 3) {
+          flash("右上角最多三条");
+          return;
+        }
+      }
+      const metadata = Object.assign({}, md, { keyword, pin, done });
+      if (railBox) metadata.rail = railBox.checked;
       const body = all
-        ? { title: name, precision: "day", starts_at: `${date}T00:00:00+08:00`, ends_at: nextDay(date) + "T00:00:00+08:00" }
-        : { title: name, precision: "hour", starts_at: `${date}T${pad(a)}:${pad(b)}:00+08:00`, ends_at: `${date}T${pad(c)}:${pad(d)}:00+08:00` };
+        ? { title: name, precision: "day", starts_at: `${date}T00:00:00+08:00`, ends_at: nextDay(date) + "T00:00:00+08:00", metadata }
+        : { title: name, precision: "hour", starts_at: `${date}T${pad(a)}:${pad(b)}:00+08:00`, ends_at: `${date}T${pad(c)}:${pad(d)}:00+08:00`, metadata };
       if (ev) await api(`/api/v1/calendar/events/${ev.id}`, { method: "PATCH", body: JSON.stringify(body) });
       else await api("/api/v1/calendar/events", { method: "POST", body: JSON.stringify(body) });
       closeModal();
@@ -936,6 +1168,7 @@
     state.view = "month";
     await loadMonth();
     renderMonth();
+    startWatch();
   }
 
   $("open-book").addEventListener("click", openBook);

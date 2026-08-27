@@ -179,6 +179,35 @@ button { cursor: pointer; }
   display: flex;
   padding-top: 6px;
 }
+.nav-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.rail {
+  text-align: right;
+  max-width: 168px;
+}
+.rail button {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-sub);
+  text-align: right;
+}
+.rail .md {
+  font-family: "Space Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--ink-title);
+  margin-right: 6px;
+}
 .nav button {
   width: 22px;
   height: 19px;
@@ -246,14 +275,18 @@ button { cursor: pointer; }
 }
 .cell.today .num { color: var(--ink-today); }
 .cell .titles {
-  position: relative;
-  z-index: 2;
-  padding: 0 5px;
-  font-size: 8px;
-  line-height: 1.15;
-  letter-spacing: -0.4px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  z-index: 3;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
 }
 .cell .titles div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell .kw.done { text-decoration: line-through; opacity: 0.62; }
 .cell .band {
   position: absolute;
   left: 0; right: 0;
@@ -412,6 +445,8 @@ button { cursor: pointer; }
   min-height: 34px;
   cursor: pointer;
 }
+.event-block.done .t,
+.all-day .span.done { text-decoration: line-through; opacity: 0.62; }
 .event-block .t {
   font-size: 17px;
   letter-spacing: -0.6px;
@@ -683,12 +718,47 @@ button { cursor: pointer; }
   font-weight: 400;
 }
 .sheet label { display: block; font-size: 13px; margin: 10px 0 4px; }
+.sheet label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+}
 .sheet input, .sheet textarea {
   width: 100%;
   border: 1.3px solid var(--paper-border);
   background: var(--paper-capsule);
   padding: 8px 10px;
   border-radius: 4px;
+}
+.sheet label.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  border: 1.3px solid var(--paper-border);
+  background: #fff;
+  accent-color: var(--ink-kitty);
+}
+.stale-bar {
+  margin: 10px 16px 0;
+  padding: 8px 10px;
+  background: #fff6f4;
+  border: 1.2px solid var(--paper-border);
+  color: var(--ink-title);
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.stale-bar button {
+  border: 1.3px solid var(--paper-nav);
+  background: var(--paper-fab);
+  padding: 4px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 .sheet .actions {
   display: flex;

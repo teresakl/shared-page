@@ -1,5 +1,5 @@
 [
-  {"month_day": "03-15", "type": "birthday", "title": "birthday"},
-  {"month_day": "06-01", "type": "anniversary", "title": "anniversary"},
+  {"month_day": "03-15", "type": "birthday", "title": "birthday", "rail": true},
+  {"month_day": "06-01", "type": "anniversary", "title": "anniversary", "rail": true},
   {"month_day": "12-25", "type": "holiday", "title": "Christmas"}
 ]
