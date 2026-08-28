@@ -44,9 +44,9 @@ The web client handles the paper-like reading and editing experience. Through MC
 
 The web client and MCP server use the same SQLite database. The default setup stores data on the machine where the service runs and does not require an account system.
 
-![The web month and day views](https://github.com/teresakl/shared-page/raw/main/docs/preview.png)
+![The web month and day views](docs/preview.png)
 
-_The screenshot shows the current web client with example month/day data, an event, a note, and paper elements._
+_Left: month view with the annual-date rail. Right: the August 25 page, with notes from both sides, stickers, and a polaroid._
 
 ## Quick start
 
@@ -121,6 +121,10 @@ GET http://127.0.0.1:8787/api/v1/calendar/ping
 - Events can be marked as priority for month-grid display when a day is crowded.
 - `birthday` and `anniversary` events use the anniversary style; `period` events use the span style.
 - Up to three pinned birthdays or anniversaries appear in the annual rail.
+
+![An event on the day timeline, with the add menu open](docs/day-events.png)
+
+![The event editor](docs/editor.png)
 
 The default labels are `USER` and `ASSISTANT`; environment variables can change them. Seeded dates use the USER-side paper color and keep `source: seed` in the data as their provenance marker.
 

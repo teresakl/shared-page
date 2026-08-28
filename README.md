@@ -44,9 +44,9 @@ Shared Page 是一本手帐风格的共享日历。一个人和一个 AI agent �
 
 网页和 MCP 共用同一个 SQLite 数据库。服务默认使用本机文件，不需要账号系统。
 
-![网页端的月视图和日视图](https://github.com/teresakl/shared-page/raw/main/docs/preview.png)
+![网页端的月视图和日视图](docs/preview.png)
 
-_截图是当前网页端的示范数据，包含月视图、日视图、事件、便签和纸面元素。_
+_左是月视图，右上角是年度纪念日；右是 8 月 25 日的纸面，有两边的便签、贴纸和拍立得。_
 
 ## 快速开始
 
@@ -121,6 +121,10 @@ GET http://127.0.0.1:8787/api/v1/calendar/ping
 - 事件可以设置“优先显示”，用于月历里日期较拥挤时的显示取舍；
 - `birthday` 和 `anniversary` 使用纪念日样式，`period` 使用横带样式；
 - 月历右上角最多显示三条被钉住的生日或纪念日。
+
+![日视图里的安排和添加菜单](docs/day-events.png)
+
+![改一条安排](docs/editor.png)
 
 网页默认使用 `USER` 和 `ASSISTANT` 作为两侧标签，也可以通过环境变量改成自己的称呼。播种产生的固定日期使用 USER 侧的纸面颜色，同时在数据中保留 `source: seed` 作为来源标记。
 
