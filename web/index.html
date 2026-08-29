@@ -4,18 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>一本和 AI 共用的日历</title>
-  <link rel="stylesheet" href="/styles.css?v=6">
+  <link rel="stylesheet" href="/styles.css?v=11">
 </head>
 <body>
   <div id="desk">
     <div id="book">
       <section id="unlock" class="unlock">
         <h1>shared page<span class="year">2026</span></h1>
-        <p class="sub">tap the token, then open the page</p>
-        <label for="token">本机钥匙</label>
+        <p class="sub" id="unlock-sub">填钥匙，打开这一页</p>
+        <label for="token" id="unlock-token-label">本机钥匙</label>
         <input id="token" type="password" autocomplete="off" spellcheck="false">
         <div class="row">
           <button type="button" id="open-book">打开</button>
+          <div class="lang" role="group" aria-label="language">
+            <button type="button" data-lang="zh">中</button>
+            <button type="button" data-lang="en">EN</button>
+          </div>
         </div>
         <div class="err" id="unlock-err"></div>
       </section>
@@ -27,6 +31,6 @@
 
   <div id="modal" class="modal" hidden></div>
   <script src="/vendor/html2canvas.min.js"></script>
-  <script src="/app.js?v=6"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>

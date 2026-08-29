@@ -130,8 +130,31 @@ button { cursor: pointer; }
   display: flex;
   gap: 8px;
   margin-top: 14px;
+  align-items: center;
 }
-.unlock button {
+.lang {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.lang button {
+  border: 1.1px solid var(--paper-border);
+  background: transparent;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--ink-sub);
+}
+.lang button.on {
+  background: var(--paper-fab);
+  color: var(--ink-title);
+  border-color: var(--paper-nav);
+}
+.header .lang {
+  display: flex;
+  margin: 8px 0 0;
+}
+.unlock .row > button {
   border: 1.3px solid var(--paper-nav);
   background: var(--paper-fab);
   padding: 8px 16px;

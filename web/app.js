@@ -1,7 +1,131 @@
 (() => {
+  const I18N = {
+    zh: {
+      docTitle: "一本和 AI 共用的日历",
+      unlockSub: "填钥匙，打开这一页",
+      tokenLabel: "本机钥匙",
+      open: "打开",
+      staleFlash: "先刷新，这一本别处改过",
+      badToken: "钥匙不对",
+      staleBar: "这一本在别处改过，先刷新再动",
+      refresh: "刷新",
+      rotate: "转",
+      scale: "大小",
+      addEvent: "写一条安排",
+      addNote: "贴一张便签",
+      addSticker: "贴纸",
+      addPhoto: "拍立得",
+      trayHint: "按住拖到这一页上。点空白处放下、收起。",
+      putAway: "收起",
+      notePlaceholder: "写点什么",
+      pageNotReady: "这一页还没准备好",
+      stickerFail: "贴纸没贴上",
+      editEvent: "改一条",
+      newEvent: "写一条",
+      title: "标题",
+      keyword: "月历短词",
+      keywordPh: "空着就从标题收一截",
+      start: "开始",
+      end: "结束",
+      allDay: "全天",
+      pin: "日程过多，月历优先显示",
+      done: "做完了",
+      rail: "钉在右上角（最多三条）",
+      save: "放下",
+      cancel: "先不写了",
+      tear: "撕掉",
+      railFull: "右上角最多三条",
+      needToken: "先把钥匙填上",
+      cantOpen: "打不开",
+    },
+    en: {
+      docTitle: "A calendar shared with an AI",
+      unlockSub: "tap the token, then open the page",
+      tokenLabel: "local token",
+      open: "open",
+      staleFlash: "refresh first — this book changed elsewhere",
+      badToken: "wrong token",
+      staleBar: "this book changed elsewhere — refresh before editing",
+      refresh: "refresh",
+      rotate: "rotate",
+      scale: "size",
+      addEvent: "write an event",
+      addNote: "stick a note",
+      addSticker: "sticker",
+      addPhoto: "polaroid",
+      trayHint: "hold and drag onto the page. tap empty space to drop and close.",
+      putAway: "close",
+      notePlaceholder: "write something",
+      pageNotReady: "this page isn’t ready yet",
+      stickerFail: "sticker didn’t stick",
+      editEvent: "edit",
+      newEvent: "write",
+      title: "title",
+      keyword: "month keyword",
+      keywordPh: "leave empty to shorten automatically",
+      start: "start",
+      end: "end",
+      allDay: "all day",
+      pin: "too many events — pin on the month",
+      done: "done",
+      rail: "pin to the top-right (max three)",
+      save: "put down",
+      cancel: "not now",
+      tear: "tear off",
+      railFull: "top-right only holds three",
+      needToken: "fill in the token first",
+      cantOpen: "couldn’t open",
+    },
+  };
+  function detectLang() {
+    const q = new URLSearchParams(location.search).get("lang");
+    if (q === "en" || q === "zh") return q;
+    const saved = localStorage.getItem("sharedPageLang");
+    if (saved === "en" || saved === "zh") return saved;
+    return String(navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+  }
+  let lang = detectLang();
+  function tr(key) {
+    const pack = I18N[lang] || I18N.en;
+    const v = pack[key];
+    return v == null ? (I18N.en[key] == null ? key : I18N.en[key]) : v;
+  }
   const MONTHS_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const WEEK_LETTERS = ["M","T","W","T","F","S","S"];
   const WEEKDAYS_EN = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  function monthName(m) { return MONTHS_EN[m - 1]; }
+  function weekLetters() { return WEEK_LETTERS; }
+  function weekdayName(i) { return WEEKDAYS_EN[i]; }
+  function langToggleHtml() {
+    return `<div class="lang" role="group" aria-label="language"><button type="button" data-lang="zh" class="${lang === "zh" ? "on" : ""}">中</button><button type="button" data-lang="en" class="${lang === "en" ? "on" : ""}">EN</button></div>`;
+  }
+  function applyLangChrome() {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    document.title = tr("docTitle");
+    const sub = document.getElementById("unlock-sub");
+    if (sub) sub.textContent = tr("unlockSub");
+    const lab = document.getElementById("unlock-token-label");
+    if (lab) lab.textContent = tr("tokenLabel");
+    const open = document.getElementById("open-book");
+    if (open) open.textContent = tr("open");
+    document.querySelectorAll("[data-lang]").forEach((b) => {
+      b.classList.toggle("on", b.dataset.lang === lang);
+    });
+  }
+  function setLang(next) {
+    if (next !== "zh" && next !== "en") return;
+    if (next === lang) return;
+    const box = $("token");
+    if (box && box.value.trim()) state.token = box.value.trim();
+    lang = next;
+    localStorage.setItem("sharedPageLang", lang);
+    applyLangChrome();
+    closeModal();
+    if (state.view === "month") renderMonth();
+    else if (state.view === "day") renderDay();
+    else renderUnlock();
+  }
+
   const STICKERS = [
     { id: "5713CA70-0000-4000-A000-000000000001", name: "halftone-cat-sleeping", w: 86 },
     { id: "5713CA70-0000-4000-A000-000000000002", name: "halftone-camera", w: 72 },
@@ -106,10 +230,10 @@
   }
   function monthKeyword(ev) {
     const k = String(metaOf(ev).keyword || "").trim();
-    if (k) return [...k].slice(0, 6).join("");
+    if (k) return [...k].slice(0, 12).join("");
     const t = String(ev.title || "").trim();
     const chars = [...t];
-    return chars.length <= 5 ? t : chars.slice(0, 5).join("");
+    return chars.length <= 10 ? t : chars.slice(0, 10).join("");
   }
   function isStampType(ev) {
     return ["birthday", "anniversary"].includes(ev.event_type);
@@ -189,7 +313,7 @@
     const method = String(opts.method || "GET").toUpperCase();
     const guarded = method !== "GET" && /\/(events|notes|placed|photos)/.test(path);
     if (guarded && state.stale) {
-      flash("先刷新，这一本别处改过");
+      flash(tr("staleFlash"));
       throw new Error("stale");
     }
     if (guarded) state._writing = true;
@@ -199,7 +323,7 @@
     }
     try {
       const res = await fetch(path, Object.assign({}, opts, { headers }));
-      if (res.status === 401) throw new Error("钥匙不对");
+      if (res.status === 401) throw new Error(tr("badToken"));
       if (!res.ok) {
         let detail = res.statusText;
         try { detail = (await res.json()).detail || detail; } catch (_) {}
@@ -240,7 +364,7 @@
     state._quietUntil = Date.now() + 4000;
   }
   function staleBarHtml() {
-    return `<div class="stale-bar">这一本在别处改过，先刷新再动<button type="button" data-refresh>刷新</button></div>`;
+    return `<div class="stale-bar">${tr("staleBar")}<button type="button" data-refresh>${tr("refresh")}</button></div>`;
   }
   function bindStale(host) {
     host.querySelector("[data-refresh]")?.addEventListener("click", () => refreshNow());
@@ -352,7 +476,14 @@
     $("unlock").hidden = false;
     $("month-view").hidden = true;
     $("day-view").hidden = true;
-    $("token").value = state.token;
+    const box = $("token");
+    const typed = box.value.trim();
+    if (typed) state.token = typed;
+    box.value = state.token;
+    const need = !!state.tokenRequired;
+    $("unlock-token-label").hidden = !need;
+    $("token").hidden = !need;
+    applyLangChrome();
   }
 
   function renderMonth() {
@@ -360,7 +491,7 @@
     $("day-view").hidden = true;
     const el = $("month-view");
     el.hidden = false;
-    const t = todayParts();
+    const now = todayParts();
     const y = state.year, m = state.month;
     const blanks = leadingBlanks(y, m);
     const dim = daysInMonth(y, m);
@@ -375,7 +506,7 @@
       const dayEvents = inMonth ? eventsOnDay(n) : [];
       const spans = inMonth ? spansCovering(n) : [];
       const stamp = inMonth && dayEvents.some((e) => ["birthday", "anniversary"].includes(e.event_type));
-      const isToday = inMonth && t.y === y && t.m === m && t.day === n;
+      const isToday = inMonth && now.y === y && now.m === m && now.day === n;
       cells.push(`<div class="cell${inMonth ? "" : " dim"}${isToday ? " today" : ""}" ${inMonth ? `data-day="${n}"` : ""}>
         ${spans.slice(0, 2).map((s, idx) => `<div class="band ${authorOf(s)}" style="top:${17 + idx * 36}px"></div>`).join("")}
         ${stamp ? `<img class="stamp" src="/assets/stickers/stamp-heart-mini.png" alt="">` : ""}
@@ -392,8 +523,9 @@
       ${state.stale ? staleBarHtml() : ""}
       <div class="header">
         <div>
-          <h1>${MONTHS_EN[m - 1]}<span class="year">${y}</span></h1>
+          <h1>${monthName(m)}<span class="year">${y}</span></h1>
           <p class="sub">tap a day to open it</p>
+          ${langToggleHtml()}
         </div>
         <div class="nav-col">
           <div class="nav">
@@ -406,7 +538,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="weekdays">${WEEK_LETTERS.map((w) => `<span>${w}</span>`).join("")}</div>
+        <div class="weekdays">${weekLetters().map((w) => `<span>${w}</span>`).join("")}</div>
         ${Array.from({ length: rows }, (_, r) => `<div class="grid-row">${cells.slice(r * 7, r * 7 + 7).join("")}</div>`).join("")}
         <div class="legend">
           <span><i class="swatch" style="background:var(--ink-kitty)"></i>USER</span>
@@ -456,7 +588,7 @@
     const el = $("day-view");
     el.hidden = false;
     const date = isoDate(state.year, state.month, state.day);
-    const wd = WEEKDAYS_EN[(leadingBlanks(state.year, state.month) + state.day - 1) % 7];
+    const wd = weekdayName((leadingBlanks(state.year, state.month) + state.day - 1) % 7);
     const hours = [];
     for (let h = FIRST_HOUR; h <= LAST_HOUR; h++) {
       const y = yOf(h, 0);
@@ -506,8 +638,8 @@
       const layer = selected ? Math.max(z, 21) : z;
       const handles = selected ? `
         <button type="button" class="x" data-del-placed="${esc(item.id)}">✕</button>
-        <button type="button" class="rot" data-rot-placed="${esc(item.id)}" aria-label="转"></button>
-        <button type="button" class="scl" data-scl-placed="${esc(item.id)}" aria-label="大小"></button>` : "";
+        <button type="button" class="rot" data-rot-placed="${esc(item.id)}" aria-label="${tr("rotate")}"></button>
+        <button type="button" class="scl" data-scl-placed="${esc(item.id)}" aria-label="${tr("scale")}"></button>` : "";
       const box = `left:${item.x}px;top:${item.y}px;z-index:${layer};--s:${scale};transform:translate(-50%,-50%) rotate(${rot}deg) scale(${scale})`;
       if (item.kind === "photo") {
         return `<div class="placed photo${selected ? " selected" : ""}" data-placed="${esc(item.id)}" style="${box}">
@@ -528,10 +660,10 @@
 
     el.innerHTML = `
       ${state.stale ? staleBarHtml() : ""}
-      <button type="button" class="back" id="back-month"><span class="chev">‹</span><span class="mname">${MONTHS_EN[state.month - 1]}</span></button>
+      <button type="button" class="back" id="back-month"><span class="chev">‹</span><span class="mname">${monthName(state.month)}</span></button>
       <div class="week-strip" id="week-strip">${weekStripHtml()}</div>
       <div id="day-sheet">
-        <div class="title-row"><span class="big">${MONTHS_EN[state.month - 1]} ${state.day}</span><span class="wd">${wd}</span></div>
+        <div class="title-row"><span class="big">${monthName(state.month)} ${state.day}</span><span class="wd">${wd}</span></div>
         <div class="all-day">${allday.map((e) => {
           const done = !!metaOf(e).done;
           return `<div class="span${done ? " done" : ""}" data-event="${esc(e.id)}">${esc(e.title)}</div>`;
@@ -545,14 +677,14 @@
       </div>
       <button type="button" class="fab" id="fab">+</button>
       <div class="fab-menu" id="fab-menu" ${state.fabOpen ? "" : "hidden"}>
-        <button type="button" data-add="event">写一条安排</button>
-        <button type="button" data-add="note">贴一张便签</button>
-        <button type="button" data-add="sticker">贴纸</button>
-        <button type="button" data-add="photo">拍立得</button>
+        <button type="button" data-add="event">${tr("addEvent")}</button>
+        <button type="button" data-add="note">${tr("addNote")}</button>
+        <button type="button" data-add="sticker">${tr("addSticker")}</button>
+        <button type="button" data-add="photo">${tr("addPhoto")}</button>
       </div>
       ${state.trayOpen ? `
       <div class="sticker-tray" id="sticker-tray">
-        <p class="hint">按住拖到这一页上。点空白处放下、收起。<button type="button" class="tray-close" data-close-tray>收起</button></p>
+        <p class="hint">${tr("trayHint")} <button type="button" class="tray-close" data-close-tray>${tr("putAway")}</button></p>
         <div class="row">${STICKERS.map((s) =>
           `<button type="button" data-sticker="${s.id}"><img src="/assets/stickers/${s.name}.png" alt=""></button>`
         ).join("")}</div>
@@ -593,11 +725,11 @@
       const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, day = d.getUTCDate();
       const key = isoDate(y, m, day);
       const out = m !== state.month;
-      const t = todayParts();
-      const today = y === t.y && m === t.m && day === t.day;
+      const now = todayParts();
+      const today = y === now.y && m === now.m && day === now.day;
       const selected = i === 0;
       bits.push(`<button type="button" class="strip-cell${out ? " out" : ""}${today ? " today" : ""}" data-strip="${key}">
-        <span class="w">${WEEK_LETTERS[(d.getUTCDay() + 6) % 7]}</span>
+        <span class="w">${weekLetters()[(d.getUTCDay() + 6) % 7]}</span>
         <span class="dwrap">${selected ? `<img src="/assets/stickers/pink-date-circle.png" alt="">` : ""}<span class="d">${day}</span></span>
       </button>`);
     }
@@ -718,7 +850,7 @@
       const body = node.querySelector(".body");
       if (mine && body && body.isContentEditable) {
         body.addEventListener("blur", async () => {
-          const text = body.innerText.trim() || "写点什么";
+          const text = body.innerText.trim() || tr("notePlaceholder");
           const n = state.notes.find((x) => x.id === id);
           if (n) n.body = text;
           markDirty();
@@ -973,11 +1105,11 @@
           state._draggingPlaced = false;
           ghost.remove();
           const pt = pagePoint(e.clientX || lastX, e.clientY || lastY);
-          if (!pt) { flash("这一页还没准备好"); return; }
+          if (!pt) { flash(tr("pageNotReady")); return; }
           try {
             await dropSticker(st, pt.x, pt.y);
           } catch (err) {
-            flash(err.message || "贴纸没贴上");
+            flash(err.message || tr("stickerFail"));
           }
         };
         window.addEventListener("pointermove", onMove);
@@ -1108,23 +1240,23 @@
     const stamp = ev && isStampType(ev);
     const railOn = md.rail === true || (md.rail !== false && RAIL_DEFAULT.includes(title));
     openModal(`
-      <h2>${ev ? "改一条" : "写一条"}</h2>
-      <label>标题</label>
+      <h2>${ev ? tr("editEvent") : tr("newEvent")}</h2>
+      <label>${tr("title")}</label>
       <input id="ev-title" value="${esc(title)}" maxlength="160">
-      <label>月历短词</label>
-      <input id="ev-keyword" value="${esc(md.keyword || "")}" maxlength="6" placeholder="空着就自动收成几个字">
-      <label>开始</label>
+      <label>${tr("keyword")}</label>
+      <input id="ev-keyword" value="${esc(md.keyword || "")}" maxlength="12" placeholder="${tr("keywordPh")}">
+      <label>${tr("start")}</label>
       <input id="ev-start" type="time" value="${pad(sh)}:${pad(sm)}">
-      <label>结束</label>
+      <label>${tr("end")}</label>
       <input id="ev-end" type="time" value="${pad(eh)}:${pad(em)}">
-      <label class="check"><input type="checkbox" id="ev-all" ${allDay ? "checked" : ""}> 全天</label>
-      <label class="check"><input type="checkbox" id="ev-pin" ${md.pin ? "checked" : ""}> 日程过多，月历优先显示</label>
-      <label class="check"><input type="checkbox" id="ev-done" ${md.done ? "checked" : ""}> 做完了</label>
-      ${stamp ? `<label class="check"><input type="checkbox" id="ev-rail" ${railOn ? "checked" : ""}> 钉在右上角（最多三条）</label>` : ""}
+      <label class="check"><input type="checkbox" id="ev-all" ${allDay ? "checked" : ""}>${tr("allDay")}</label>
+      <label class="check"><input type="checkbox" id="ev-pin" ${md.pin ? "checked" : ""}>${tr("pin")}</label>
+      <label class="check"><input type="checkbox" id="ev-done" ${md.done ? "checked" : ""}>${tr("done")}</label>
+      ${stamp ? `<label class="check"><input type="checkbox" id="ev-rail" ${railOn ? "checked" : ""}>${tr("rail")}</label>` : ""}
       <div class="actions">
-        <button type="button" id="ev-save">放下</button>
-        <button type="button" class="ghost" data-close>先不写了</button>
-        ${ev ? `<button type="button" class="danger" id="ev-del">撕掉</button>` : ""}
+        <button type="button" id="ev-save">${tr("save")}</button>
+        <button type="button" class="ghost" data-close>${tr("cancel")}</button>
+        ${ev ? `<button type="button" class="danger" id="ev-del">${tr("tear")}</button>` : ""}
       </div>`);
     $("modal").querySelector("#ev-save").addEventListener("click", async () => {
       const titleEl = $("modal").querySelector("#ev-title");
@@ -1141,7 +1273,7 @@
       if (railBox && railBox.checked) {
         const already = railEvents(state.year).some((e) => e.id === (ev && ev.id));
         if (!already && railEvents(state.year).length >= 3) {
-          flash("右上角最多三条");
+          flash(tr("railFull"));
           return;
         }
       }
@@ -1177,7 +1309,7 @@
     const y = 34 + state.notes.length * 116;
     const created = await api("/api/v1/calendar/notes", {
       method: "POST",
-      body: JSON.stringify({ body: "写点什么", anchor_date: date, y }),
+      body: JSON.stringify({ body: tr("notePlaceholder"), anchor_date: date, y }),
     });
     state.notes.push(created);
     state.activeNote = created.id;
@@ -1240,28 +1372,35 @@
     err.textContent = "";
     const typed = $("token").value.trim();
     if (typed) state.token = typed;
-    if (state.tokenRequired && !state.token) { err.textContent = "先把钥匙填上"; return; }
+    if (state.tokenRequired && !state.token) { err.textContent = tr("needToken"); return; }
     try {
       await api("/api/v1/calendar/events?limit=1");
     } catch (e) {
-      err.textContent = e.message || "打不开";
+      err.textContent = e.message || tr("cantOpen");
       return;
     }
     if (state.token) localStorage.setItem("calendarToken", state.token);
-    const t = todayParts();
-    state.year = t.y; state.month = t.m; state.day = t.day;
+    const now = todayParts();
+    state.year = now.y; state.month = now.m; state.day = now.day;
     state.view = "month";
     await loadMonth();
     renderMonth();
     startWatch();
   }
 
+  applyLangChrome();
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-lang]");
+    if (!b) return;
+    e.preventDefault();
+    setLang(b.dataset.lang);
+  });
   $("open-book").addEventListener("click", openBook);
   $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") openBook(); });
 
   (async () => {
-    const t = todayParts();
-    state.year = t.y; state.month = t.m;
+    const now = todayParts();
+    state.year = now.y; state.month = now.m;
     try {
       const ping = await fetch("/api/v1/calendar/ping").then((r) => r.json());
       state.tokenRequired = !!ping.token_required;

@@ -44,9 +44,9 @@ The web client handles the paper-like reading and editing experience. Through MC
 
 The web client and MCP server use the same SQLite database. The default setup stores data on the machine where the service runs and does not require an account system.
 
-![The web month and day views](docs/preview.png)
+![The English month view](docs/month-en.png)
 
-_Left: month view with the annual-date rail. Right: the August 25 page, with notes from both sides, stickers, and a polaroid._
+_Month view in English. The 中 / EN control switches buttons and editor prompts; month names stay English._
 
 ## Quick start
 
@@ -113,6 +113,8 @@ GET http://127.0.0.1:8787/api/v1/calendar/ping
 
 ## Web client
 
+The web UI has a real Chinese / English interface. Buttons and editor prompts switch; month names, weekday letters, and `tap a day to open it` stay on the English paper. A **中 / EN** control follows the browser language on first visit, then remembers the choice. README screenshots can lock the language with `?lang=en` or `?lang=zh`. If the server requires a token, the unlock page can switch language without clearing a key you already typed.
+
 ### Month and day views
 
 - Month view shows dates, event keywords, today state, the annual-date rail, and unseen-change notices.
@@ -122,9 +124,9 @@ GET http://127.0.0.1:8787/api/v1/calendar/ping
 - `birthday` and `anniversary` events use the anniversary style; `period` events use the span style.
 - Up to three pinned birthdays or anniversaries appear in the annual rail.
 
-![An event on the day timeline, with the add menu open](docs/day-events.png)
+![An event on the day timeline, with the add menu open](docs/day-events-en.png)
 
-![The event editor](docs/editor.png)
+![The event editor](docs/editor-en.png)
 
 The default labels are `USER` and `ASSISTANT`; environment variables can change them. Seeded dates use the USER-side paper color and keep `source: seed` in the data as their provenance marker.
 
@@ -132,7 +134,7 @@ The default labels are `USER` and `ASSISTANT`; environment variables can change 
 
 In day view, you can place a note on the current date. A note is a short reminder on that day's paper, not an automatic copy of every chat turn. The intended workflow is to put formal plans in events and create a note only after an explicit request or through an already authorized scheduled workflow.
 
-The web client creates a note immediately with the starter text `写点什么` and enters editing. The text is saved on blur; `×` means remove the note. MCP `comment` creates a note when the integrating application has that explicit request. Notes can be edited, liked, or removed. MCP also supports attaching a note to an event, while the web client lays notes out by date and does not show that binding separately.
+The web client creates a note immediately with the starter text `write something` and enters editing. The text is saved on blur; `×` means remove the note. MCP `comment` creates a note when the integrating application has that explicit request. Notes can be edited, liked, or removed. MCP also supports attaching a note to an event, while the web client lays notes out by date and does not show that binding separately.
 
 A paper note is designed for about two lines, roughly 18 CJK characters. Longer text can be split across notes; the complete text remains in the database.
 
