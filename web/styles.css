@@ -622,6 +622,11 @@ button { cursor: pointer; }
   display: flex;
   gap: 10px;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  padding-bottom: 6px;
 }
 .sticker-tray .row button {
   flex: 0 0 64px;
@@ -630,7 +635,7 @@ button { cursor: pointer; }
   border: 1px dashed var(--paper-border);
   background: #fff;
   padding: 6px;
-  touch-action: none;
+  touch-action: pan-x;
 }
 .sticker-tray .row img {
   width: 100%;

@@ -15,7 +15,7 @@
       addNote: "贴一张便签",
       addSticker: "贴纸",
       addPhoto: "拍立得",
-      trayHint: "按住拖到这一页上。点空白处放下、收起。",
+      trayHint: "栏里左右滑看更多。按住往上拖到这一页。",
       putAway: "收起",
       notePlaceholder: "写点什么",
       pageNotReady: "这一页还没准备好",
@@ -53,7 +53,7 @@
       addNote: "stick a note",
       addSticker: "sticker",
       addPhoto: "polaroid",
-      trayHint: "hold and drag onto the page. tap empty space to drop and close.",
+      trayHint: "swipe the tray for more. hold and drag up onto the page.",
       putAway: "close",
       notePlaceholder: "write something",
       pageNotReady: "this page isn’t ready yet",
@@ -1079,31 +1079,58 @@
     });
     tray.querySelectorAll("[data-sticker]").forEach((btn) => {
       btn.addEventListener("pointerdown", (ev) => {
-        ev.preventDefault();
         ev.stopPropagation();
         const st = STICKERS.find((s) => s.id === btn.dataset.sticker);
         if (!st) return;
-        const ghost = document.createElement("img");
-        ghost.className = "ghost-sticker";
-        ghost.src = `/assets/stickers/${st.name}.png`;
-        ghost.style.left = `${ev.clientX}px`;
-        ghost.style.top = `${ev.clientY}px`;
-        document.body.appendChild(ghost);
-        let lastX = ev.clientX;
-        let lastY = ev.clientY;
-        state._draggingPlaced = true;
+        const startX = ev.clientX;
+        const startY = ev.clientY;
+        let lastX = startX;
+        let lastY = startY;
+        let mode = null;
+        let ghost = null;
         const onMove = (e) => {
+          if (e.pointerId !== ev.pointerId) return;
           lastX = e.clientX;
           lastY = e.clientY;
+          const dx = lastX - startX;
+          const dy = lastY - startY;
+          if (!mode) {
+            if (Math.hypot(dx, dy) < 10) return;
+            if (Math.abs(dx) >= Math.abs(dy)) {
+              mode = "scroll";
+              return;
+            }
+            mode = "drag";
+            e.preventDefault();
+            try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+            ghost = document.createElement("img");
+            ghost.className = "ghost-sticker";
+            ghost.src = `/assets/stickers/${st.name}.png`;
+            ghost.style.left = `${lastX}px`;
+            ghost.style.top = `${lastY}px`;
+            document.body.appendChild(ghost);
+            state._draggingPlaced = true;
+            return;
+          }
+          if (mode !== "drag" || !ghost) return;
+          e.preventDefault();
           ghost.style.left = `${lastX}px`;
           ghost.style.top = `${lastY}px`;
         };
-        const finish = async (e) => {
+        const onUp = async (e) => {
+          if (e.pointerId !== ev.pointerId && e.type !== "pointercancel") return;
+          btn.removeEventListener("pointermove", onMove);
+          btn.removeEventListener("pointerup", onUp);
+          btn.removeEventListener("pointercancel", onUp);
           window.removeEventListener("pointermove", onMove);
-          window.removeEventListener("pointerup", finish);
-          window.removeEventListener("pointercancel", finish);
+          window.removeEventListener("pointerup", onUp);
+          window.removeEventListener("pointercancel", onUp);
+          try {
+            if (btn.hasPointerCapture && btn.hasPointerCapture(ev.pointerId)) btn.releasePointerCapture(ev.pointerId);
+          } catch (_) {}
+          if (mode !== "drag") return;
           state._draggingPlaced = false;
-          ghost.remove();
+          if (ghost) ghost.remove();
           const pt = pagePoint(e.clientX || lastX, e.clientY || lastY);
           if (!pt) { flash(tr("pageNotReady")); return; }
           try {
@@ -1112,10 +1139,13 @@
             flash(err.message || tr("stickerFail"));
           }
         };
-        window.addEventListener("pointermove", onMove);
-        window.addEventListener("pointerup", finish);
-        window.addEventListener("pointercancel", finish);
-      }, { passive: false });
+        btn.addEventListener("pointermove", onMove);
+        btn.addEventListener("pointerup", onUp);
+        btn.addEventListener("pointercancel", onUp);
+        window.addEventListener("pointermove", onMove, { passive: false });
+        window.addEventListener("pointerup", onUp);
+        window.addEventListener("pointercancel", onUp);
+      });
     });
   }
 
